@@ -204,6 +204,7 @@ public class ClientTest {
         "src/test/resources/record10.xml"
     };
     Client client = new Client(vertx, webClient, "http://localhost:" + PORT, null, "testlib");
+    client.setOrdered();
     future = future.compose(x -> Client.exec(client, args));
 
     future.eventually(x -> httpServer.close())
@@ -266,6 +267,7 @@ public class ClientTest {
           JsonObject r = requests.getJsonObject(0);
           context.assertEquals(sourceId.toString(), r.getString("sourceId"));
           context.assertEquals(2, r.getJsonArray("records").size());
+          // this could be the other way around due to unordered XSLTs.
           context.assertEquals("a2", r.getJsonArray("records").getJsonObject(0).getString("localId"));
           context.assertEquals("a3", r.getJsonArray("records").getJsonObject(1).getString("localId"));
         }));
