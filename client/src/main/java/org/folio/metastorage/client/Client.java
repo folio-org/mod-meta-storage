@@ -155,7 +155,7 @@ public class Client {
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
-    }, true);
+    }, false);
   }
 
   private class XmlReaderProxy implements ReaderProxy {
