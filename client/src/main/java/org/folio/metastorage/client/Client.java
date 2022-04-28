@@ -54,8 +54,6 @@ public class Client {
 
   List<Templates> templates = new LinkedList<>();
 
-  boolean ordered = false; // whether chunks are ordered or not
-
   /**
    * Construct client.
    * @param webClient WebClient to use
@@ -73,10 +71,6 @@ public class Client {
     headers.set(XOkapiHeaders.URL, url);
     headers.set(XOkapiHeaders.TOKEN, token);
     headers.set(XOkapiHeaders.TENANT, tenant);
-  }
-
-  void setOrdered() {
-    ordered = true;
   }
 
   public void setSourceId(UUID sourceId) {
@@ -161,7 +155,7 @@ public class Client {
       } catch (Exception e) {
         throw new RuntimeException(e);
       }
-    }, ordered);
+    }, true);
   }
 
   private class XmlReaderProxy implements ReaderProxy {
