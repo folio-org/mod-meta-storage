@@ -153,7 +153,7 @@ public class Client {
       try {
         x.complete(XmlJsonUtil.createIngestRecord(marcXml, templates));
       } catch (Exception e) {
-        throw new RuntimeException(e);
+        x.fail(e);
       }
     }, false);
   }
