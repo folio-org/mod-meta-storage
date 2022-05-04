@@ -388,9 +388,9 @@ public class Storage {
     return pool.withConnection(conn ->
         getAvailableMatchConfigs(conn).compose(matchKeyConfigs ->
           new ReadStreamConsumer<JsonObject, Void>()
-          .consume(request, r -> 
+          .consume(request, r ->
             upsertGlobalRecord(
-              UUID.fromString(request.topLevelObject().getString("sourceId")), 
+              UUID.fromString(request.topLevelObject().getString("sourceId")),
               r, matchKeyConfigs))
         ));
   }
@@ -637,19 +637,30 @@ public class Storage {
         ));
   }
 
-  Future<JsonObject> recalculateMatchKeyValueTable(SqlConnection connection, MatchKeyMethod method,
-      String matchKeyConfigId) {
+  Future<JsonObject> recalculateMatchKeyValueTable(RoutingContext ctx, SqlConnection connection,
+      MatchKeyMethod method, String matchKeyConfigId) {
 
     String query = "SELECT * FROM " + bibRecordTable;
+    AtomicBoolean closedConnection = new AtomicBoolean();
     AtomicInteger count = new AtomicInteger();
+    log.info("initkeys begin");
     return connection.prepare(query).compose(pq ->
         connection.begin().compose(tx -> {
           RowStream<Row> stream = pq.createStream(sqlStreamFetchSize);
           Promise<JsonObject> promise = Promise.promise();
           stream.handler(row -> {
             stream.pause();
+            if (!closedConnection.get()) {
+              if (ctx.response().closed()) {
+                closedConnection.set(Boolean.TRUE);
+                log.error("Client closed connection");
+                tx.rollback();
+              }
+            }
             count.incrementAndGet();
-
+            if ((count.get() % 1000) == 0) {
+              log.info("Count = {}", count.get());
+            }
             UUID globalId = row.getUUID("id");
             Set<String> keys = new HashSet<>();
             method.getKeys(row.getJsonObject("marc_payload"),
@@ -660,11 +671,16 @@ public class Storage {
           });
           stream.endHandler(end -> {
             tx.commit();
+            log.info("initkeys done");
             promise.complete(new JsonObject().put("count", count.get()));
           });
           stream.exceptionHandler(e -> {
-            log.error(e.getMessage(), e);
-            tx.commit();
+            if (closedConnection.get()) {
+              log.error("initialize aborted by client");
+            } else {
+              log.error(e.getMessage(), e);
+            }
+            tx.rollback();
             promise.fail(e);
           });
           return promise.future();
@@ -674,10 +690,11 @@ public class Storage {
 
   /**
    * Initialize match key (populate clusters).
+   * @param ctx Routing context
    * @param id match key id (user specified)
    * @return statistics
    */
-  public Future<JsonObject> initializeMatchKey(String id) {
+  public Future<JsonObject> initializeMatchKey(RoutingContext ctx, String id) {
     return pool.withConnection(connection ->
         connection.preparedQuery(
                 "SELECT * FROM " + matchKeyConfigTable + " WHERE id = $1")
@@ -695,7 +712,7 @@ public class Storage {
                 return Future.failedFuture("Unknown match key method: " + method);
               }
               matchKeyMethod.configure(params);
-              return recalculateMatchKeyValueTable(connection, matchKeyMethod, id);
+              return recalculateMatchKeyValueTable(ctx, connection, matchKeyMethod, id);
             })
     );
   }

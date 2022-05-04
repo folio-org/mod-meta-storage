@@ -235,7 +235,7 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
     Storage storage = new Storage(ctx);
-    return storage.initializeMatchKey(id)
+    return storage.initializeMatchKey(ctx, id)
         .onSuccess(res -> {
           if (res == null) {
             matchKeyNotFound(ctx, id);
