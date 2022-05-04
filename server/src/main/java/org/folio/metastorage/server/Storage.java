@@ -385,18 +385,17 @@ public class Storage {
    * @return async result
    */
   public Future<Void> updateGlobalRecords(LargeJsonReadStream request) {
-    return pool.withConnection(conn ->
-        getAvailableMatchConfigs(conn).compose(matchKeyConfigs ->
-          new ReadStreamConsumer<JsonObject, Void>()
-          .consume(request, r -> 
-            upsertGlobalRecord(
-              UUID.fromString(request.topLevelObject().getString("sourceId")), 
-              r, matchKeyConfigs))
-        ));
+    return getAvailableMatchConfigs().compose(matchKeyConfigs ->
+        new ReadStreamConsumer<JsonObject, Void>()
+            .consume(request, r ->
+                upsertGlobalRecord(
+                    UUID.fromString(request.topLevelObject().getString("sourceId")),
+                    r, matchKeyConfigs))
+    );
   }
 
-  Future<JsonArray> getAvailableMatchConfigs(SqlConnection conn) {
-    return conn.query("SELECT * FROM " + matchKeyConfigTable)
+  Future<JsonArray> getAvailableMatchConfigs() {
+    return pool.query("SELECT * FROM " + matchKeyConfigTable)
         .execute()
         .map(res -> {
           JsonArray matchConfigs = new JsonArray();
