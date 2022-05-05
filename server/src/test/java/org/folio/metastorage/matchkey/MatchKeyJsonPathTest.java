@@ -25,7 +25,7 @@ public class MatchKeyJsonPathTest {
     Set<String> keys = new HashSet<>();
     Exception e = Assert.assertThrows(
         MatchKeyException.class,
-        () -> matchKeyMethod.getKeys(payload, payload, keys));
+        () -> matchKeyMethod.getKeys(payload, keys));
     assertThat(e.getMessage(), is("Not configured"));
   }
 
@@ -36,13 +36,13 @@ public class MatchKeyJsonPathTest {
     Exception e = Assert.assertThrows(
         MatchKeyException.class,
         () ->     matchKeyMethod.configure(jsonObject));
-    assertThat(e.getMessage(), is("jsonpath: either \"marc\" or \"inventory\" must be given"));
+    assertThat(e.getMessage(), is("jsonpath: expr must be given"));
   }
 
   @Test
   public void matchKeyJsonPathConfigureInvalidJsonPath() {
     MatchKeyMethod matchKeyMethod = new MatchKeyJsonPath();
-    JsonObject configuration = new JsonObject().put("marc", "$.fields.010.subfields[x");
+    JsonObject configuration = new JsonObject().put("expr", "$.fields.010.subfields[x");
     Assert.assertThrows(InvalidPathException.class,
         () -> matchKeyMethod.configure(configuration));
   }
@@ -50,7 +50,7 @@ public class MatchKeyJsonPathTest {
   @Test
   public void matchKeyJsonPathConfigureMarc() {
     MatchKeyMethod matchKeyMethod = new MatchKeyJsonPath();
-    matchKeyMethod.configure(new JsonObject().put("marc", "$.fields.010.subfields[*].a"));
+    matchKeyMethod.configure(new JsonObject().put("expr", "$.fields.010.subfields[*].a"));
 
     JsonObject marc = new JsonObject()
         .put("leader", "00942nam  22002531a 4504")
@@ -69,7 +69,7 @@ public class MatchKeyJsonPathTest {
             )
         );
     Set<String> keys = new HashSet<>();
-    matchKeyMethod.getKeys(marc, new JsonObject(), keys);
+    matchKeyMethod.getKeys(marc, keys);
     assertThat(keys, is(empty()));
 
     marc = new JsonObject()
@@ -90,34 +90,34 @@ public class MatchKeyJsonPathTest {
             )
         );
     keys.clear();
-    matchKeyMethod.getKeys(marc, new JsonObject(), keys);
+    matchKeyMethod.getKeys(marc, keys);
     assertThat(keys, containsInAnyOrder("73209622", "73209623"));
   }
 
   @Test
   public void matchKeyJsonPathConfigureInventory() {
     MatchKeyMethod matchKeyMethod = new MatchKeyJsonPath();
-    matchKeyMethod.configure(new JsonObject().put("inventory", "$.inventory.isbn[*]"));
+    matchKeyMethod.configure(new JsonObject().put("expr", "$.inventory.isbn[*]"));
     JsonObject inventory = new JsonObject()
         .put("inventory", new JsonObject()
             .put("isbn", new JsonArray().add("73209622")));
     Set<String> keys = new HashSet<>();
-    matchKeyMethod.getKeys(new JsonObject(), inventory, keys);
+    matchKeyMethod.getKeys(inventory, keys);
     assertThat(keys, contains("73209622"));
 
     inventory = new JsonObject()
         .put("inventory", new JsonObject()
             .put("issn", new JsonArray().add("73209622")));
     keys.clear();
-    matchKeyMethod.getKeys(new JsonObject(), inventory, keys);
+    matchKeyMethod.getKeys(inventory, keys);
     assertThat(keys, is(empty()));
   }
 
-  void matchKeyVerify(String pattern, Set<String> expectedKeys, JsonObject inventoryPayload) {
+  void matchKeyVerify(String pattern, Set<String> expectedKeys, JsonObject payload) {
     MatchKeyMethod matchKeyMethod = new MatchKeyJsonPath();
-    matchKeyMethod.configure(new JsonObject().put("inventory", pattern));
+    matchKeyMethod.configure(new JsonObject().put("expr", pattern));
     Set<String> keys = new HashSet<>();
-    matchKeyMethod.getKeys(new JsonObject(), inventoryPayload, keys);
+    matchKeyMethod.getKeys(payload, keys);
     Assert.assertEquals(expectedKeys, keys);
   }
 
