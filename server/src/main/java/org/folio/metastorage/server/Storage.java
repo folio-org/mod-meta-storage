@@ -78,7 +78,7 @@ public class Storage {
     return clusterMetaTable;
   }
 
-  public String getBibRecordTable() {
+  public String getGlobalRecordTable() {
     return globalRecordTable;
   }
 
@@ -143,7 +143,7 @@ public class Storage {
     ).mapEmpty();
   }
 
-  Future<Void> upsertBibRecord(
+  Future<Void> upsertGlobalRecord(
       SqlConnection conn,
       String localIdentifier,
       UUID sourceId,
@@ -166,7 +166,7 @@ public class Storage {
         .mapEmpty();
   }
 
-  Future<Void> deleteBibRecord(SqlConnection conn, String localIdentifier, UUID sourceId) {
+  Future<Void> deleteGlobalRecord(SqlConnection conn, String localIdentifier, UUID sourceId) {
     String q = "UPDATE " + clusterMetaTable + " AS m"
         + " SET datestamp = $3"
         + " FROM " + globalRecordTable + ", " + clusterRecordTable + " AS r"
@@ -180,20 +180,20 @@ public class Storage {
         .mapEmpty());
   }
 
-  Future<Void> upsertGlobalRecord(UUID sourceId, JsonObject globalRecord,
+  Future<Void> ingestGlobalRecord(UUID sourceId, JsonObject globalRecord,
       JsonArray matchKeyConfigs) {
 
     return pool.withTransaction(conn ->
-            upsertGlobalRecord(conn, sourceId, globalRecord, matchKeyConfigs))
+            ingestGlobalRecord(conn, sourceId, globalRecord, matchKeyConfigs))
         // addValuesToCluster may fail if for same new match key for parallel operations
         // we recover just once for that. 2nd will find the new value for the one that
         // succeeded.
         .recover(x ->
             pool.withTransaction(conn ->
-                upsertGlobalRecord(conn, sourceId, globalRecord, matchKeyConfigs)));
+                ingestGlobalRecord(conn, sourceId, globalRecord, matchKeyConfigs)));
   }
 
-  Future<Void> upsertGlobalRecord(SqlConnection conn, UUID sourceId,
+  Future<Void> ingestGlobalRecord(SqlConnection conn, UUID sourceId,
       JsonObject globalRecord, JsonArray matchKeyConfigs) {
 
     final String localIdentifier = globalRecord.getString("localId");
@@ -201,13 +201,13 @@ public class Storage {
       return Future.failedFuture("localId required");
     }
     if (Boolean.TRUE.equals(globalRecord.getBoolean("delete"))) {
-      return deleteBibRecord(conn, localIdentifier, sourceId);
+      return deleteGlobalRecord(conn, localIdentifier, sourceId);
     }
     final JsonObject payload = globalRecord.getJsonObject("payload");
     if (payload == null) {
       return Future.failedFuture("payload required");
     }
-    return upsertBibRecord(conn, localIdentifier, sourceId, payload, matchKeyConfigs);
+    return upsertGlobalRecord(conn, localIdentifier, sourceId, payload, matchKeyConfigs);
   }
 
   Future<Void> updateMatchKeyValues(SqlConnection conn, UUID globalId,
@@ -388,7 +388,7 @@ public class Storage {
     return pool.withConnection(this::getAvailableMatchConfigs).compose(matchKeyConfigs ->
             new ReadStreamConsumer<JsonObject, Void>()
               .consume(request, r ->
-                upsertGlobalRecord(
+                ingestGlobalRecord(
                     UUID.fromString(request.topLevelObject().getString("sourceId")),
                     r, matchKeyConfigs)));
   }

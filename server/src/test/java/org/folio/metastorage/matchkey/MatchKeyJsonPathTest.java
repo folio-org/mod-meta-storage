@@ -50,47 +50,50 @@ public class MatchKeyJsonPathTest {
   @Test
   public void matchKeyJsonPathConfigureMarc() {
     MatchKeyMethod matchKeyMethod = new MatchKeyJsonPath();
-    matchKeyMethod.configure(new JsonObject().put("expr", "$.fields.010.subfields[*].a"));
+    matchKeyMethod.configure(new JsonObject().put("expr", "$.marc.fields.010.subfields[*].a"));
 
-    JsonObject marc = new JsonObject()
-        .put("leader", "00942nam  22002531a 4504")
-        .put("fields", new JsonObject()
-            .put("001", "   73209622 //r823")
-            .put("010", new JsonObject()
-                .put("subfields", new JsonArray()
-                    .add(new JsonObject().put("b", "73209622"))
+    JsonObject payload = new JsonObject()
+        .put("marc", new JsonObject()
+            .put("leader", "00942nam  22002531a 4504")
+            .put("fields", new JsonObject()
+                .put("001", "   73209622 //r823")
+                .put("010", new JsonObject()
+                    .put("subfields", new JsonArray()
+                        .add(new JsonObject().put("b", "73209622"))
+                    )
                 )
-            )
-            .put("245", new JsonObject()
-                .put("subfields", new JsonArray()
-                    .add(new JsonObject().put("a", "The Computer Bible /"))
-                    .add(new JsonObject().put("c", "J. Arthur Baird, David Noel Freedman, editors." ))
+                .put("245", new JsonObject()
+                    .put("subfields", new JsonArray()
+                        .add(new JsonObject().put("a", "The Computer Bible /"))
+                        .add(new JsonObject().put("c", "J. Arthur Baird, David Noel Freedman, editors." ))
+                    )
                 )
             )
         );
     Set<String> keys = new HashSet<>();
-    matchKeyMethod.getKeys(marc, keys);
+    matchKeyMethod.getKeys(payload, keys);
     assertThat(keys, is(empty()));
 
-    marc = new JsonObject()
-        .put("leader", "00942nam  22002531a 4504")
-        .put("fields", new JsonObject()
-            .put("001", "   73209622 //r823")
-            .put("010", new JsonObject()
-                .put("subfields", new JsonArray()
-                    .add(new JsonObject().put("a", "73209622"))
-                    .add(new JsonObject().put("a", "73209623"))
+    payload = new JsonObject()
+        .put("marc", new JsonObject()
+            .put("leader", "00942nam  22002531a 4504")
+            .put("fields", new JsonObject()
+                .put("001", "   73209622 //r823")
+                .put("010", new JsonObject()
+                    .put("subfields", new JsonArray()
+                        .add(new JsonObject().put("a", "73209622"))
+                        .add(new JsonObject().put("a", "73209623"))
+                    )
                 )
-            )
-            .put("245", new JsonObject()
-                .put("subfields", new JsonArray()
-                    .add(new JsonObject().put("a", "The Computer Bible /"))
-                    .add(new JsonObject().put("c", "J. Arthur Baird, David Noel Freedman, editors." ))
+                .put("245", new JsonObject()
+                    .put("subfields", new JsonArray()
+                        .add(new JsonObject().put("a", "The Computer Bible /"))
+                        .add(new JsonObject().put("c", "J. Arthur Baird, David Noel Freedman, editors." ))
+                    )
                 )
-            )
-        );
+            ));
     keys.clear();
-    matchKeyMethod.getKeys(marc, keys);
+    matchKeyMethod.getKeys(payload, keys);
     assertThat(keys, containsInAnyOrder("73209622", "73209623"));
   }
 
@@ -98,18 +101,18 @@ public class MatchKeyJsonPathTest {
   public void matchKeyJsonPathConfigureInventory() {
     MatchKeyMethod matchKeyMethod = new MatchKeyJsonPath();
     matchKeyMethod.configure(new JsonObject().put("expr", "$.inventory.isbn[*]"));
-    JsonObject inventory = new JsonObject()
+    JsonObject payload = new JsonObject()
         .put("inventory", new JsonObject()
             .put("isbn", new JsonArray().add("73209622")));
     Set<String> keys = new HashSet<>();
-    matchKeyMethod.getKeys(inventory, keys);
+    matchKeyMethod.getKeys(payload, keys);
     assertThat(keys, contains("73209622"));
 
-    inventory = new JsonObject()
+    payload = new JsonObject()
         .put("inventory", new JsonObject()
             .put("issn", new JsonArray().add("73209622")));
     keys.clear();
-    matchKeyMethod.getKeys(inventory, keys);
+    matchKeyMethod.getKeys(payload, keys);
     assertThat(keys, is(empty()));
   }
 

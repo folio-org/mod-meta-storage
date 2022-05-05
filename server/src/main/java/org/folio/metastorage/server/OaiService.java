@@ -241,7 +241,7 @@ public final class OaiService {
 
   static Future<String> getXmlRecordMetadata(Storage storage, SqlConnection conn, UUID clusterId,
       List<String> matchValues) {
-    String q = "SELECT * FROM " + storage.getBibRecordTable()
+    String q = "SELECT * FROM " + storage.getGlobalRecordTable()
         + " LEFT JOIN " + storage.getClusterRecordTable() + " ON record_id = id "
         + " WHERE cluster_id = $1";
     return conn.preparedQuery(q)
