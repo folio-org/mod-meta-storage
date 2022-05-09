@@ -2,6 +2,7 @@ package org.folio.metastorage.matchkey.impl;
 
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
 import java.util.Collection;
 import org.folio.metastorage.matchkey.MatchKeyMethod;
@@ -22,7 +23,7 @@ public class MatchKeyJavaScript implements MatchKeyMethod {
       future = Future.succeededFuture(script);
     } else if (filename != null) {
       Vertx vertx = Vertx.currentContext().owner();
-      future = vertx.fileSystem().readFile(filename).map(buf -> buf.toString());
+      future = vertx.fileSystem().readFile(filename).map(Buffer::toString);
     } else {
       return Future.failedFuture("javascript: filename or script must be given");
     }
@@ -43,7 +44,7 @@ public class MatchKeyJavaScript implements MatchKeyMethod {
 
   @Override
   public void getKeys(JsonObject payload, Collection<String> keys) {
-    Value value = getKeysFunction.execute(1);
+    Value value = getKeysFunction.execute(payload.encode());
     if (value.hasArrayElements()) {
       for (int i = 0; i < value.getArraySize(); i++) {
         Value memberValue = value.getArrayElement(i);
