@@ -47,6 +47,15 @@ public class MatchKeyJavaScriptTest {
   }
 
   @Test
+  public void testNoSuchFile(TestContext context) {
+    MatchKeyMethod.get("javascript", new JsonObject()
+            .put("filename", "isbn-match-no.js"))
+        .onComplete(context.asyncAssertFailure(e ->
+            assertThat(e.getMessage(), containsString("isbn-match-no.js"))
+        ));
+  }
+
+  @Test
   public void testLong(TestContext context) {
     Collection<String> keys = new HashSet<>();
     MatchKeyMethod.get("javascript", new JsonObject().put("script", "x => JSON.parse(x).id + 1"))
