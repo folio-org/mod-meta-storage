@@ -55,10 +55,10 @@ public class MatchKeyJavaScriptTest {
   @Test
   public void testString(TestContext context) {
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject().put("script", "x => JSON.parse(x).id + '1'"))
+    MatchKeyMethod.get("javascript", new JsonObject().put("script", "x => JSON.parse(x).id + 'x'"))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
           matchKeyMethod.getKeys(new JsonObject().put("id", "2"), keys);
-          assertThat(keys, containsInAnyOrder("21"));
+          assertThat(keys, containsInAnyOrder("2x"));
         }));
   }
 
