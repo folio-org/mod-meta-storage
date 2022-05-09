@@ -1,13 +1,9 @@
 package org.folio.metastorage.matchkey.impl;
 
 import io.vertx.core.Future;
-import io.vertx.core.Vertx;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
-
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.util.Collection;
 import org.folio.metastorage.matchkey.MatchKeyMethod;
 import org.graalvm.polyglot.Source;
