@@ -4,8 +4,13 @@ import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonObject;
+
+import java.io.File;
+import java.io.IOException;
+import java.net.URL;
 import java.util.Collection;
 import org.folio.metastorage.matchkey.MatchKeyMethod;
+import org.graalvm.polyglot.Source;
 import org.graalvm.polyglot.Value;
 
 public class MatchKeyJavaScript implements MatchKeyMethod {
@@ -18,20 +23,23 @@ public class MatchKeyJavaScript implements MatchKeyMethod {
   public Future<Void> configure(JsonObject configuration) {
     String filename = configuration.getString("filename");
     String script = configuration.getString("script");
-    Future<String> future;
     if (script != null) {
-      future = Future.succeededFuture(script);
+      context = org.graalvm.polyglot.Context.create("js");
+      getKeysFunction = context.eval("js", script);
     } else if (filename != null) {
-      Vertx vertx = Vertx.currentContext().owner();
-      future = vertx.fileSystem().readFile(filename).map(Buffer::toString);
+      File file = new File(filename);
+      context = org.graalvm.polyglot.Context.create("js");
+      Source source;
+      try {
+        source = Source.newBuilder("js", file).build();
+      } catch (IOException e) {
+        return Future.failedFuture(e);
+      }
+      getKeysFunction = context.eval(source);
     } else {
       return Future.failedFuture("javascript: filename or script must be given");
     }
-    return future.map(content -> {
-      context = org.graalvm.polyglot.Context.create("js");
-      getKeysFunction = context.eval("js", content);
-      return null;
-    });
+    return Future.succeededFuture();
   }
 
   private void addValue(Collection<String> keys, Value value) {

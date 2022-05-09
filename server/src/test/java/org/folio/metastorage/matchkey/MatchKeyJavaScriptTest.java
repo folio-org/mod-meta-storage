@@ -5,16 +5,20 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
+
+import java.net.URL;
 import java.util.Collection;
 import java.util.HashSet;
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.testcontainers.shaded.com.google.common.io.Resources;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.stringContainsInOrder;
 
 @RunWith(VertxUnitRunner.class)
 public class MatchKeyJavaScriptTest {
@@ -86,15 +90,8 @@ public class MatchKeyJavaScriptTest {
         );
 
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject().put("script",
-            "x => { var identifiers = JSON.parse(x).identifiers;"
-                + "const isbn = [];"
-                + "for (i = 0; i < identifiers.length; i++) {"
-                + "  isbn.push(identifiers[i].isbn);"
-                + "};"
-                + "return isbn;"
-                + "}"
-        ))
+    MatchKeyMethod.get("javascript", new JsonObject()
+            .put("filename", Resources.getResource("isbn-match.js").getFile()))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
           matchKeyMethod.getKeys(inventory, keys);
           assertThat(keys, containsInAnyOrder("73209629", "73209623"));
