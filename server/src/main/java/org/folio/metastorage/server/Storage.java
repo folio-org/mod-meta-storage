@@ -228,15 +228,14 @@ public class Storage {
       return Future.succeededFuture();
     }
     String methodName = matchKeyConfig.getString("method");
-    MatchKeyMethod method = MatchKeyMethod.get(methodName);
-    if (method == null) {
-      return Future.failedFuture("Unknown match key method: " + methodName);
-    }
-    method.configure(matchKeyConfig.getJsonObject("params"));
-    Set<String> keys = new HashSet<>();
-    method.getKeys(payload, keys);
-    String matchKeyConfigId = matchKeyConfig.getString("id");
-    return updateMatchKeyValues(conn, globalId, matchKeyConfigId, keys);
+    JsonObject params = matchKeyConfig.getJsonObject("params");
+    return MatchKeyMethod.get(methodName, params)
+        .compose(matchKeyMethod -> {
+          Set<String> keys = new HashSet<>();
+          matchKeyMethod.getKeys(payload, keys);
+          String matchKeyConfigId = matchKeyConfig.getString("id");
+          return updateMatchKeyValues(conn, globalId, matchKeyConfigId, keys);
+        });
   }
 
   Future<Void> updateMatchKeyValues(SqlConnection conn, UUID globalId,
@@ -686,12 +685,8 @@ public class Storage {
               Row row = iterator.next();
               String method = row.getString("method");
               JsonObject params = row.getJsonObject("params");
-              MatchKeyMethod matchKeyMethod = MatchKeyMethod.get(method);
-              if (matchKeyMethod == null) {
-                return Future.failedFuture("Unknown match key method: " + method);
-              }
-              matchKeyMethod.configure(params);
-              return recalculateMatchKeyValueTable(connection, matchKeyMethod, id);
+              return MatchKeyMethod.get(method, params).compose(matchKeyMethod ->
+                  recalculateMatchKeyValueTable(connection, matchKeyMethod, id));
             })
     );
   }
