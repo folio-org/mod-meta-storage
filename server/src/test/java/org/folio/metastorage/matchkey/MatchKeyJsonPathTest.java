@@ -5,12 +5,12 @@ import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
-import java.util.HashSet;
-import java.util.Set;
-
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
+import java.util.HashSet;
+import java.util.Set;
 import org.folio.metastorage.matchkey.impl.MatchKeyJsonPath;
+import org.junit.AfterClass;
 import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.Test;
@@ -25,11 +25,19 @@ import static org.hamcrest.Matchers.is;
 @RunWith(VertxUnitRunner.class)
 public class MatchKeyJsonPathTest {
 
+  static final String TENANT = "tenant";
+
+  static final String MATCHKEYID = "matchkeyid";
   static Vertx vertx;
 
   @BeforeClass
-  public static void beforeClass(TestContext context)  {
+  public static void beforeClass()  {
     vertx = Vertx.vertx();
+  }
+
+  @AfterClass
+  public static void afterClass(TestContext context) {
+    vertx.close().onComplete(context.asyncAssertSuccess());
   }
 
   @Test
@@ -45,14 +53,14 @@ public class MatchKeyJsonPathTest {
 
   @Test
   public void matchKeyJsonPathNonConfigured(TestContext context) {
-    MatchKeyMethod.get(vertx, "foo", new JsonObject()).onComplete(context.asyncAssertFailure(e ->
+    MatchKeyMethod.get(vertx, TENANT, MATCHKEYID, "foo", new JsonObject()).onComplete(context.asyncAssertFailure(e ->
         assertThat(e.getMessage(), is("Unknown match key method foo"))
     ));
   }
 
   @Test
   public void matchKeyBadPath(TestContext context) {
-    MatchKeyMethod.get(vertx, "jsonpath", new JsonObject()).onComplete(context.asyncAssertFailure(e ->
+    MatchKeyMethod.get(vertx, TENANT, MATCHKEYID, "jsonpath", new JsonObject()).onComplete(context.asyncAssertFailure(e ->
       assertThat(e.getMessage(), is("jsonpath: expr must be given"))
     ));
   }
@@ -68,7 +76,7 @@ public class MatchKeyJsonPathTest {
   @Test
   public void matchKeyJsonPathConfigureInvalidJsonPath2(TestContext context) {
     JsonObject configuration = new JsonObject().put("expr", "$.fields.010.subfields[x");
-    MatchKeyMethod.get(vertx, "jsonpath", configuration).onComplete(context.asyncAssertFailure(e ->
+    MatchKeyMethod.get(vertx, TENANT, MATCHKEYID, "jsonpath", configuration).onComplete(context.asyncAssertFailure(e ->
             assertThat(e.getClass(), is(InvalidPathException.class))
         ));
   }
@@ -147,7 +155,7 @@ public class MatchKeyJsonPathTest {
   }
 
   Future<Void> matchKeyVerify(String pattern, Set<String> expectedKeys, JsonObject payload) {
-    return MatchKeyMethod.get(vertx, "jsonpath", new JsonObject().put("expr", pattern))
+    return MatchKeyMethod.get(vertx, TENANT, MATCHKEYID, "jsonpath", new JsonObject().put("expr", pattern))
         .map(matchKeyMethod -> {
           Set<String> keys = new HashSet<>();
           matchKeyMethod.getKeys(payload, keys);

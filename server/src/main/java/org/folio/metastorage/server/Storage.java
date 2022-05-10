@@ -50,7 +50,9 @@ public class Storage {
   final String clusterRecordTable;
   final String clusterValueTable;
   final String clusterMetaTable;
+  private final String tenant;
   static int sqlStreamFetchSize = 50;
+
 
   /**
    * Create storage service for tenant.
@@ -59,6 +61,7 @@ public class Storage {
    */
   public Storage(Vertx vertx, String tenant) {
     this.pool = TenantPgPool.pool(vertx, tenant);
+    this.tenant = tenant;
     this.globalRecordTable = pool.getSchema() + ".global_records";
     this.matchKeyConfigTable = pool.getSchema() + ".match_key_config";
     this.clusterRecordTable = pool.getSchema() + ".cluster_records";
@@ -230,7 +233,8 @@ public class Storage {
     }
     String methodName = matchKeyConfig.getString("method");
     JsonObject params = matchKeyConfig.getJsonObject("params");
-    return MatchKeyMethod.get(vertx, methodName, params)
+    String id = matchKeyConfig.getString("id");
+    return MatchKeyMethod.get(vertx, tenant, id, methodName, params)
         .compose(matchKeyMethod -> {
           Set<String> keys = new HashSet<>();
           matchKeyMethod.getKeys(payload, keys);
@@ -699,7 +703,7 @@ public class Storage {
               Row row = iterator.next();
               String method = row.getString("method");
               JsonObject params = row.getJsonObject("params");
-              return MatchKeyMethod.get(vertx, method, params).compose(matchKeyMethod ->
+              return MatchKeyMethod.get(vertx, tenant, id, method, params).compose(matchKeyMethod ->
                   recalculateMatchKeyValueTable(connection, matchKeyMethod, id));
             })
     );

@@ -10,12 +10,15 @@ public interface MatchKeyMethod {
   /**
    * Get MatchKeyMethod instance with configuration.
    * @param vertx Vert.x handle
+   * @param tenant tenant
+   * @param id matchkey id
    * @param method method name
    * @param configuration configuration
    * @return Async result MatchKeyMethod
    */
-  static Future<MatchKeyMethod> get(Vertx vertx, String method, JsonObject configuration) {
-    return MatchKeyMethodFactory.get(vertx, method, configuration);
+  static Future<MatchKeyMethod> get(Vertx vertx, String tenant, String id,
+      String method, JsonObject configuration) {
+    return MatchKeyMethodFactory.get(vertx, tenant, id, method, configuration);
   }
 
   Future<Void> configure(Vertx vertx, JsonObject configuration);

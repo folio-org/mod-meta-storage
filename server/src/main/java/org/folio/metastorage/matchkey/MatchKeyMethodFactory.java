@@ -8,11 +8,14 @@ import java.util.Map;
 import org.folio.metastorage.matchkey.impl.MatchKeyJavaScript;
 import org.folio.metastorage.matchkey.impl.MatchKeyJsonPath;
 
-public class MatchKeyMethodFactory {
+public final class MatchKeyMethodFactory {
 
-  private MatchKeyMethodFactory() { }
+  private MatchKeyMethodFactory() {
+    throw new UnsupportedOperationException("MatchKeyMethodFactory");
+  }
 
-  private static Map<String, Map<JsonObject,MatchKeyMethod>> instances = new HashMap<>();
+
+  private static Map<String, MatchKeyMethodEntry> instances = new HashMap<>();
 
   /**
    * Get MatchKeyMethod instance from method.
@@ -28,26 +31,31 @@ public class MatchKeyMethodFactory {
     return null;
   }
 
-  static Future<MatchKeyMethod> get(Vertx vertx, String method, JsonObject configuration) {
+  static Future<MatchKeyMethod> get(Vertx vertx, String tenant, String id,
+      String method, JsonObject configuration) {
+    String primaryKey = tenant + "-" + id;
+    JsonObject conf = new JsonObject()
+        .put("method", method)
+        .put("params", configuration);
+
     synchronized (MatchKeyMethod.class) {
-      Map<JsonObject, MatchKeyMethod> confMap = instances.get(method);
-      if (confMap == null) {
-        confMap = new HashMap<>();
-        instances.put(method, confMap);
-      } else {
-        MatchKeyMethod matchKeyMethod = confMap.get(configuration);
-        if (matchKeyMethod != null) {
-          return Future.succeededFuture(matchKeyMethod);
+      MatchKeyMethodEntry entry = instances.get(primaryKey);
+      if (entry != null) {
+        if (entry.conf.equals(conf)) {
+          return Future.succeededFuture(entry.method);
         }
+        instances.remove(primaryKey);
       }
       MatchKeyMethod m = get(method);
       if (m == null) {
         return Future.failedFuture("Unknown match key method " + method);
       }
-      final Map<JsonObject,MatchKeyMethod> confMap1 = confMap;
       try {
         return m.configure(vertx, configuration).map(x -> {
-          confMap1.put(configuration, m);
+          MatchKeyMethodEntry newEntry = new MatchKeyMethodEntry();
+          newEntry.conf = conf;
+          newEntry.method = m;
+          instances.put(primaryKey, newEntry);
           return m;
         });
       } catch (Exception e) {
@@ -56,4 +64,11 @@ public class MatchKeyMethodFactory {
     }
   }
 
+  static void clearCache() {
+    instances.clear();
+  }
+
+  static int getCacheSize() {
+    return instances.size();
+  }
 }
