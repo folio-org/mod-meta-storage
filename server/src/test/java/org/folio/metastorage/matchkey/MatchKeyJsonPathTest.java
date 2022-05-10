@@ -62,7 +62,7 @@ public class MatchKeyJsonPathTest {
     MatchKeyMethod matchKeyMethod = new MatchKeyJsonPath();
     JsonObject configuration = new JsonObject().put("expr", "$.fields.010.subfields[x");
     Assert.assertThrows(InvalidPathException.class,
-        () -> matchKeyMethod.configure(configuration));
+        () -> matchKeyMethod.configure(vertx, configuration));
   }
 
   @Test
@@ -76,7 +76,7 @@ public class MatchKeyJsonPathTest {
   @Test
   public void matchKeyJsonPathConfigureMarc(TestContext context) {
     MatchKeyMethod matchKeyMethod = new MatchKeyJsonPath();
-    matchKeyMethod.configure(new JsonObject().put("expr", "$.marc.fields.010.subfields[*].a"))
+    matchKeyMethod.configure(vertx, new JsonObject().put("expr", "$.marc.fields.010.subfields[*].a"))
         .onComplete(context.asyncAssertSuccess(s -> {
 
           JsonObject payload = new JsonObject()
@@ -128,7 +128,7 @@ public class MatchKeyJsonPathTest {
   @Test
   public void matchKeyJsonPathConfigureInventory(TestContext context) {
     MatchKeyMethod matchKeyMethod = new MatchKeyJsonPath();
-    matchKeyMethod.configure(new JsonObject().put("expr", "$.inventory.isbn[*]"))
+    matchKeyMethod.configure(vertx, new JsonObject().put("expr", "$.inventory.isbn[*]"))
         .onComplete(context.asyncAssertSuccess(s -> {
           JsonObject payload = new JsonObject()
               .put("inventory", new JsonObject()

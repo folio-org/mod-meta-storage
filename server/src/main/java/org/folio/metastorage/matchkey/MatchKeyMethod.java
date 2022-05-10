@@ -37,7 +37,7 @@ public interface MatchKeyMethod {
       }
       final Map<JsonObject,MatchKeyMethod> confMap1 = confMap;
       try {
-        return m.configure(configuration).map(x -> {
+        return m.configure(vertx, configuration).map(x -> {
           confMap1.put(configuration, m);
           return m;
         });
@@ -61,7 +61,7 @@ public interface MatchKeyMethod {
     return null;
   }
 
-  Future<Void> configure(JsonObject configuration);
+  Future<Void> configure(Vertx vertx, JsonObject configuration);
 
   /**
    * Generate match keys.

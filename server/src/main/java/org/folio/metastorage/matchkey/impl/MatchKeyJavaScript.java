@@ -1,6 +1,7 @@
 package org.folio.metastorage.matchkey.impl;
 
 import io.vertx.core.Future;
+import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import java.io.File;
 import java.io.IOException;
@@ -16,7 +17,7 @@ public class MatchKeyJavaScript implements MatchKeyMethod {
   org.graalvm.polyglot.Context context;
 
   @Override
-  public Future<Void> configure(JsonObject configuration) {
+  public Future<Void> configure(Vertx vertx, JsonObject configuration) {
     String filename = configuration.getString("filename");
     String script = configuration.getString("script");
     if (script != null) {
