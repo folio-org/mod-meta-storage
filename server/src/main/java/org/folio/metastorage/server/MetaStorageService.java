@@ -37,11 +37,12 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
       Storage storage = new Storage(ctx);
       HttpServerRequest request = ctx.request();
       request.pause();
-      return storage.updateGlobalRecords(new LargeJsonReadStream(request)).onSuccess(res -> {
-        JsonArray ar = new JsonArray();
-        // global ids and match keys here ...
-        HttpResponse.responseJson(ctx, 200).end(ar.encode());
-      });
+      return storage.updateGlobalRecords(ctx.vertx(), new LargeJsonReadStream(request))
+          .onSuccess(res -> {
+            JsonArray ar = new JsonArray();
+            // global ids and match keys here ...
+            HttpResponse.responseJson(ctx, 200).end(ar.encode());
+          });
     } catch (Exception e) {
       return Future.failedFuture(e);
     }
@@ -235,7 +236,7 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
     Storage storage = new Storage(ctx);
-    return storage.initializeMatchKey(id)
+    return storage.initializeMatchKey(ctx.vertx(), id)
         .onSuccess(res -> {
           if (res == null) {
             matchKeyNotFound(ctx, id);

@@ -1,6 +1,7 @@
 package org.folio.metastorage.matchkey;
 
 import io.vertx.core.Future;
+import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
 import java.util.Collection;
 import java.util.HashMap;
@@ -18,7 +19,7 @@ public interface MatchKeyMethod {
    * @param configuration configuration
    * @return Async result MatchKeyMethod
    */
-  static Future<MatchKeyMethod> get(String method, JsonObject configuration) {
+  static Future<MatchKeyMethod> get(Vertx vertx, String method, JsonObject configuration) {
     synchronized (MatchKeyMethod.class) {
       Map<JsonObject, MatchKeyMethod> confMap = instances.get(method);
       if (confMap == null) {

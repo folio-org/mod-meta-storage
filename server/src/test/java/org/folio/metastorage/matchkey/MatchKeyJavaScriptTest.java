@@ -30,7 +30,7 @@ public class MatchKeyJavaScriptTest {
 
   @Test
   public void testMissingConfig(TestContext context) {
-    MatchKeyMethod.get("javascript", new JsonObject())
+    MatchKeyMethod.get(vertx, "javascript", new JsonObject())
         .onComplete(context.asyncAssertFailure(e ->
           assertThat(e.getMessage(), is("javascript: filename or script must be given"))
         ));
@@ -38,7 +38,7 @@ public class MatchKeyJavaScriptTest {
 
   @Test
   public void testBadJavaScript(TestContext context) {
-    MatchKeyMethod.get("javascript", new JsonObject().put("script", "x =>"))
+    MatchKeyMethod.get(vertx, "javascript", new JsonObject().put("script", "x =>"))
         .onComplete(context.asyncAssertFailure(e ->
             assertThat(e.getMessage(), containsString("Expected an operand but found eof"))
         ));
@@ -46,7 +46,7 @@ public class MatchKeyJavaScriptTest {
 
   @Test
   public void testNoSuchFile(TestContext context) {
-    MatchKeyMethod.get("javascript", new JsonObject()
+    MatchKeyMethod.get(vertx, "javascript", new JsonObject()
             .put("filename", "isbn-match-no.js"))
         .onComplete(context.asyncAssertFailure(e ->
             assertThat(e.getMessage(), containsString("isbn-match-no.js"))
@@ -56,7 +56,7 @@ public class MatchKeyJavaScriptTest {
   @Test
   public void testLong(TestContext context) {
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject()
+    MatchKeyMethod.get(vertx, "javascript", new JsonObject()
             .put("script", "x => JSON.parse(x).id + 1"))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
           matchKeyMethod.getKeys(new JsonObject().put("id", 2), keys);
@@ -67,7 +67,7 @@ public class MatchKeyJavaScriptTest {
   @Test
   public void testString(TestContext context) {
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject()
+    MatchKeyMethod.get(vertx, "javascript", new JsonObject()
             .put("script", "x => JSON.parse(x).id + 'x'"))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
           matchKeyMethod.getKeys(new JsonObject().put("id", "2"), keys);
@@ -78,7 +78,7 @@ public class MatchKeyJavaScriptTest {
   @Test
   public void testBoolean(TestContext context) {
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject()
+    MatchKeyMethod.get(vertx, "javascript", new JsonObject()
             .put("script", "x => JSON.parse(x).id > 1"))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
           matchKeyMethod.getKeys(new JsonObject().put("id", "2"), keys);
@@ -89,7 +89,7 @@ public class MatchKeyJavaScriptTest {
   @Test
   public void testArray(TestContext context) {
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject()
+    MatchKeyMethod.get(vertx, "javascript", new JsonObject()
             .put("script", "function mult(p1, p2) { return p1 * p2; };"
             + " x => [JSON.parse(x).id, mult(2, 3)]"))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
@@ -109,9 +109,8 @@ public class MatchKeyJavaScriptTest {
                 .put("isbn", "73209623"))
 
         );
-
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject()
+    MatchKeyMethod.get(vertx, "javascript", new JsonObject()
             .put("filename", Resources.getResource("isbn-match.js").getFile()))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
           matchKeyMethod.getKeys(inventory, keys);
@@ -121,18 +120,18 @@ public class MatchKeyJavaScriptTest {
 
   @Test
   public void testSameConfig(TestContext context) {
-    MatchKeyMethod.get("javascript", new JsonObject()
+    MatchKeyMethod.get(vertx, "javascript", new JsonObject()
         .put("script", "x => JSON.parse(x).id + 'x'")).compose(m1 ->
-        MatchKeyMethod.get("javascript", new JsonObject()
+        MatchKeyMethod.get(vertx, "javascript", new JsonObject()
             .put("script", "x => JSON.parse(x).id + 'x'"))
             .onComplete(context.asyncAssertSuccess(m2 -> assertThat(m1, is(m2)))));
   }
 
   @Test
   public void testDiffConfig(TestContext context) {
-    MatchKeyMethod.get("javascript", new JsonObject()
+    MatchKeyMethod.get(vertx, "javascript", new JsonObject()
         .put("script", "x => JSON.parse(x).id + 'x'")).compose(m1 ->
-        MatchKeyMethod.get("javascript", new JsonObject()
+        MatchKeyMethod.get(vertx, "javascript", new JsonObject()
                 .put("script", "x => JSON.parse(x).id + 'y'"))
             .onComplete(context.asyncAssertSuccess(m2 -> assertThat(m1, not(m2)))));
   }
