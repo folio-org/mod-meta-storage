@@ -7,7 +7,6 @@ import io.vertx.core.Future;
 import io.vertx.core.json.JsonObject;
 import java.util.Collection;
 import java.util.List;
-import org.folio.metastorage.matchkey.MatchKeyException;
 import org.folio.metastorage.matchkey.MatchKeyMethod;
 
 public class MatchKeyJsonPath implements MatchKeyMethod {
@@ -26,9 +25,6 @@ public class MatchKeyJsonPath implements MatchKeyMethod {
 
   @Override
   public void getKeys(JsonObject payload, Collection<String> keys) {
-    if (jsonPath == null) {
-      throw new MatchKeyException("Not configured");
-    }
     ReadContext ctx = JsonPath.parse(payload.encode());
     try {
       Object o = ctx.read(jsonPath);

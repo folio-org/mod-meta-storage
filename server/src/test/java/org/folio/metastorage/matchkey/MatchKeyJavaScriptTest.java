@@ -5,8 +5,6 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
-
-import java.net.URL;
 import java.util.Collection;
 import java.util.HashSet;
 import org.junit.BeforeClass;
@@ -18,7 +16,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.stringContainsInOrder;
 
 @RunWith(VertxUnitRunner.class)
 public class MatchKeyJavaScriptTest {
@@ -58,7 +55,8 @@ public class MatchKeyJavaScriptTest {
   @Test
   public void testLong(TestContext context) {
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject().put("script", "x => JSON.parse(x).id + 1"))
+    MatchKeyMethod.get("javascript", new JsonObject()
+            .put("script", "x => JSON.parse(x).id + 1"))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
           matchKeyMethod.getKeys(new JsonObject().put("id", 2), keys);
           assertThat(keys, containsInAnyOrder("3"));
@@ -68,7 +66,8 @@ public class MatchKeyJavaScriptTest {
   @Test
   public void testString(TestContext context) {
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject().put("script", "x => JSON.parse(x).id + 'x'"))
+    MatchKeyMethod.get("javascript", new JsonObject()
+            .put("script", "x => JSON.parse(x).id + 'x'"))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
           matchKeyMethod.getKeys(new JsonObject().put("id", "2"), keys);
           assertThat(keys, containsInAnyOrder("2x"));
@@ -78,7 +77,8 @@ public class MatchKeyJavaScriptTest {
   @Test
   public void testBoolean(TestContext context) {
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject().put("script", "x => JSON.parse(x).id > 1"))
+    MatchKeyMethod.get("javascript", new JsonObject()
+            .put("script", "x => JSON.parse(x).id > 1"))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
           matchKeyMethod.getKeys(new JsonObject().put("id", "2"), keys);
           assertThat(keys, containsInAnyOrder());
@@ -88,7 +88,8 @@ public class MatchKeyJavaScriptTest {
   @Test
   public void testArray(TestContext context) {
     Collection<String> keys = new HashSet<>();
-    MatchKeyMethod.get("javascript", new JsonObject().put("script", "function mult(p1, p2) { return p1 * p2; };"
+    MatchKeyMethod.get("javascript", new JsonObject()
+            .put("script", "function mult(p1, p2) { return p1 * p2; };"
             + " x => [JSON.parse(x).id, mult(2, 3)]"))
         .onComplete(context.asyncAssertSuccess(matchKeyMethod -> {
           matchKeyMethod.getKeys(new JsonObject().put("id", "2"), keys);

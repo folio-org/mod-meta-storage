@@ -38,9 +38,9 @@ public class MatchKeyJsonPathTest {
     JsonObject payload = new JsonObject();
     Set<String> keys = new HashSet<>();
     Exception e = Assert.assertThrows(
-        MatchKeyException.class,
+        IllegalArgumentException.class,
         () -> matchKeyMethod.getKeys(payload, keys));
-    assertThat(e.getMessage(), is("Not configured"));
+    assertThat(e.getMessage(), is("path can not be null"));
   }
 
   @Test
