@@ -16,6 +16,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.CoreMatchers.not;
 
 @RunWith(VertxUnitRunner.class)
 public class MatchKeyJavaScriptTest {
@@ -116,6 +117,24 @@ public class MatchKeyJavaScriptTest {
           matchKeyMethod.getKeys(inventory, keys);
           assertThat(keys, containsInAnyOrder("73209629", "73209623"));
         }));
+  }
+
+  @Test
+  public void testSameConfig(TestContext context) {
+    MatchKeyMethod.get("javascript", new JsonObject()
+        .put("script", "x => JSON.parse(x).id + 'x'")).compose(m1 ->
+        MatchKeyMethod.get("javascript", new JsonObject()
+            .put("script", "x => JSON.parse(x).id + 'x'"))
+            .onComplete(context.asyncAssertSuccess(m2 -> assertThat(m1, is(m2)))));
+  }
+
+  @Test
+  public void testDiffConfig(TestContext context) {
+    MatchKeyMethod.get("javascript", new JsonObject()
+        .put("script", "x => JSON.parse(x).id + 'x'")).compose(m1 ->
+        MatchKeyMethod.get("javascript", new JsonObject()
+                .put("script", "x => JSON.parse(x).id + 'y'"))
+            .onComplete(context.asyncAssertSuccess(m2 -> assertThat(m1, not(m2)))));
   }
 
 }
