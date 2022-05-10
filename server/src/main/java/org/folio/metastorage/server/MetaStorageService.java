@@ -15,7 +15,7 @@ import java.util.UUID;
 import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.folio.metastorage.matchkey.MatchKeyMethod;
+import org.folio.metastorage.matchkey.MatchKeyMethodFactory;
 import org.folio.metastorage.util.LargeJsonReadStream;
 import org.folio.okapi.common.HttpResponse;
 import org.folio.tlib.RouterCreator;
@@ -146,10 +146,9 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
         .mapEmpty();
   }
 
-
   static String getMethod(JsonObject config) {
     String method = config.getString("method");
-    if (MatchKeyMethod.get(method) == null) {
+    if (MatchKeyMethodFactory.get(method) == null) {
       throw new IllegalArgumentException("Non-existing method '" + method + "'");
     }
     return method;
