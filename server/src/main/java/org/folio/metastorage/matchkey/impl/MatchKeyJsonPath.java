@@ -43,4 +43,9 @@ public class MatchKeyJsonPath implements MatchKeyMethod {
       // ignored.. no keys added
     }
   }
+
+  @Override
+  public void close() {
+  }
+
 }

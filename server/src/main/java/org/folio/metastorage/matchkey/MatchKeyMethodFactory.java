@@ -14,7 +14,6 @@ public final class MatchKeyMethodFactory {
     throw new UnsupportedOperationException("MatchKeyMethodFactory");
   }
 
-
   private static Map<String, MatchKeyMethodEntry> instances = new HashMap<>();
 
   /**
@@ -38,33 +37,33 @@ public final class MatchKeyMethodFactory {
         .put("method", method)
         .put("params", configuration);
 
-    synchronized (MatchKeyMethod.class) {
-      MatchKeyMethodEntry entry = instances.get(primaryKey);
-      if (entry != null) {
-        if (entry.conf.equals(conf)) {
-          return Future.succeededFuture(entry.method);
-        }
-        instances.remove(primaryKey);
+    MatchKeyMethodEntry entry = instances.get(primaryKey);
+    if (entry != null) {
+      if (entry.conf.equals(conf)) {
+        return Future.succeededFuture(entry.method);
       }
-      MatchKeyMethod m = get(method);
-      if (m == null) {
-        return Future.failedFuture("Unknown match key method " + method);
-      }
-      try {
-        return m.configure(vertx, configuration).map(x -> {
-          MatchKeyMethodEntry newEntry = new MatchKeyMethodEntry();
-          newEntry.conf = conf;
-          newEntry.method = m;
-          instances.put(primaryKey, newEntry);
-          return m;
-        });
-      } catch (Exception e) {
-        return Future.failedFuture(e);
-      }
+      entry.method.close();
+      instances.remove(primaryKey);
+    }
+    MatchKeyMethod m = get(method);
+    if (m == null) {
+      return Future.failedFuture("Unknown match key method " + method);
+    }
+    try {
+      return m.configure(vertx, configuration).map(x -> {
+        MatchKeyMethodEntry newEntry = new MatchKeyMethodEntry();
+        newEntry.conf = conf;
+        newEntry.method = m;
+        instances.put(primaryKey, newEntry);
+        return m;
+      });
+    } catch (Exception e) {
+      return Future.failedFuture(e);
     }
   }
 
   static void clearCache() {
+    instances.forEach((x,y) -> y.method.close());
     instances.clear();
   }
 

@@ -29,4 +29,9 @@ public interface MatchKeyMethod {
    * @param keys resulting keys (unmodified if no keys were generated).
    */
   void getKeys(JsonObject payload, Collection<String> keys);
+
+  /**
+   * Close resources for method.
+   */
+  void close();
 }

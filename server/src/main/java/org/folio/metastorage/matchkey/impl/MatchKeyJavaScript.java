@@ -3,11 +3,11 @@ package org.folio.metastorage.matchkey.impl;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
-import java.io.File;
-import java.io.IOException;
+import io.vertx.ext.web.client.WebClient;
+import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import java.util.Collection;
 import org.folio.metastorage.matchkey.MatchKeyMethod;
-import org.graalvm.polyglot.Source;
+import org.folio.okapi.common.WebClientFactory;
 import org.graalvm.polyglot.Value;
 
 public class MatchKeyJavaScript implements MatchKeyMethod {
@@ -16,27 +16,33 @@ public class MatchKeyJavaScript implements MatchKeyMethod {
 
   org.graalvm.polyglot.Context context;
 
+  Future<Value> evalUrl(Vertx vertx, String url) {
+    WebClient webClient = WebClientFactory.getWebClient(vertx);
+    return webClient.getAbs(url)
+        .expect(ResponsePredicate.SC_OK)
+        .send()
+        .map(response -> context.eval("js", response.bodyAsString()));
+  }
+
   @Override
   public Future<Void> configure(Vertx vertx, JsonObject configuration) {
-    String filename = configuration.getString("filename");
-    String script = configuration.getString("script");
-    if (script != null) {
-      context = org.graalvm.polyglot.Context.create("js");
-      getKeysFunction = context.eval("js", script);
-    } else if (filename != null) {
-      File file = new File(filename);
-      context = org.graalvm.polyglot.Context.create("js");
-      Source source;
-      try {
-        source = Source.newBuilder("js", file).build();
-      } catch (IOException e) {
-        return Future.failedFuture(e);
-      }
-      getKeysFunction = context.eval(source);
-    } else {
-      return Future.failedFuture("javascript: filename or script must be given");
+    context = org.graalvm.polyglot.Context.create("js");
+    Future<Value> future = Future.succeededFuture(null);
+    String url = configuration.getString("url");
+    if (url != null) {
+      future = evalUrl(vertx, url);
     }
-    return Future.succeededFuture();
+    return future.map(value -> {
+      String script = configuration.getString("script");
+      if (script != null) {
+        getKeysFunction = context.eval("js", script);
+      } else if (value != null) {
+        getKeysFunction = value;
+      } else {
+        throw new IllegalArgumentException("javascript: url or script must be given");
+      }
+      return null;
+    });
   }
 
   private void addValue(Collection<String> keys, Value value) {
@@ -57,6 +63,14 @@ public class MatchKeyJavaScript implements MatchKeyMethod {
       }
     } else {
       addValue(keys, value);
+    }
+  }
+
+  @Override
+  public void close() {
+    if (context != null) {
+      context.close(true);
+      context = null;
     }
   }
 }
