@@ -44,8 +44,4 @@ public class MatchKeyJsonPath implements MatchKeyMethod {
     }
   }
 
-  @Override
-  public void close() {
-  }
-
 }

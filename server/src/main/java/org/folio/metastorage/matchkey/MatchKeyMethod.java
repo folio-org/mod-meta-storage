@@ -33,5 +33,5 @@ public interface MatchKeyMethod {
   /**
    * Close resources for method.
    */
-  void close();
+  default void close() { }
 }
