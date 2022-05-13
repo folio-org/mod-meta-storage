@@ -1,3 +1,4 @@
+<?xml version="1.0"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
   <modelVersion>4.0.0</modelVersion>
   <parent>
@@ -58,6 +59,10 @@
       <artifactId>json-path</artifactId>
     </dependency>
     <dependency>
+      <groupId>org.graalvm.sdk</groupId>
+      <artifactId>graal-sdk</artifactId>
+    </dependency>
+    <dependency>
       <groupId>org.graalvm.js</groupId>
       <artifactId>js</artifactId>
     </dependency>
@@ -113,10 +118,66 @@
       <scope>test</scope>
     </dependency>
   </dependencies>
-
   <build>
     <plugins>
-     <plugin>
+      <plugin>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <configuration>
+          <argLine>-XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI --module-path=${compiler.dir} --upgrade-module-path=${compiler.dir}/compiler.jar:${compiler.dir}/compiler-management.jar</argLine>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-dependency-plugin</artifactId>
+        <version>2.10</version>
+        <executions>
+          <execution>
+            <id>copy</id>
+            <phase>process-test-classes</phase>
+            <goals>
+              <goal>copy</goal>
+            </goals>
+            <configuration>
+              <artifactItems>
+                <artifactItem>
+                  <groupId>org.graalvm.compiler</groupId>
+                  <artifactId>compiler</artifactId>
+                  <version>${graalvm.version}</version>
+                  <type>jar</type>
+                  <overWrite>true</overWrite>
+                  <destFileName>compiler.jar</destFileName>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>org.graalvm.compiler</groupId>
+                  <artifactId>compiler-management</artifactId>
+                  <version>${graalvm.version}</version>
+                  <type>jar</type>
+                  <overWrite>true</overWrite>
+                  <destFileName>compiler-management.jar</destFileName>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>org.graalvm.truffle</groupId>
+                  <artifactId>truffle-api</artifactId>
+                  <version>${graalvm.version}</version>
+                  <type>jar</type>
+                  <overWrite>true</overWrite>
+                  <destFileName>truffle-api.jar</destFileName>
+                </artifactItem>
+                <artifactItem>
+                  <groupId>org.graalvm.sdk</groupId>
+                  <artifactId>graal-sdk</artifactId>
+                  <version>${graalvm.version}</version>
+                  <type>jar</type>
+                  <overWrite>true</overWrite>
+                  <destFileName>graal-sdk.jar</destFileName>
+                </artifactItem>
+              </artifactItems>
+              <outputDirectory>${compiler.dir}</outputDirectory>
+            </configuration>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
         <artifactId>maven-resources-plugin</artifactId>
         <version>3.0.1</version>
         <inherited>false</inherited>
@@ -170,24 +231,22 @@
                   </manifestEntries>
                 </transformer>
               </transformers>
-              <artifactSet />
-	      <outputFile>${project.build.directory}/${project.artifactId}-fat.jar</outputFile>
-	        <filters>
+              <artifactSet/>
+              <outputFile>${project.build.directory}/${project.artifactId}-fat.jar</outputFile>
+              <filters>
                 <filter>
                   <artifact>*:*</artifact>
                   <excludes>
-                   <exclude>META-INF/*.SF</exclude>
-                   <exclude>META-INF/*.DSA</exclude>
-                   <exclude>META-INF/*.RSA</exclude>
-                 </excludes>
-               </filter>
+                    <exclude>META-INF/*.SF</exclude>
+                    <exclude>META-INF/*.DSA</exclude>
+                    <exclude>META-INF/*.RSA</exclude>
+                  </excludes>
+                </filter>
               </filters>
             </configuration>
           </execution>
         </executions>
       </plugin>
-
     </plugins>
   </build>
-
 </project>
