@@ -170,7 +170,13 @@
                   </manifestEntries>
                 </transformer>
               </transformers>
-              <artifactSet />
+              <artifactSet>
+                <excludes>
+                  <!-- already included as modules -->
+                  <exclude>org.graalvm.truffle:truffle-api</exclude>
+                  <exclude>org.graalvm.sdk:graal-sdk</exclude>
+                </excludes>
+              </artifactSet>
 	      <outputFile>${project.build.directory}/${project.artifactId}-fat.jar</outputFile>
 	        <filters>
                 <filter>
