@@ -33,6 +33,7 @@ public class MainVerticle extends AbstractVerticle {
         new HealthApi(),
     };
 
+    JavaScriptCheck.check();
     RouterCreator.mountAll(vertx, routerCreators)
         .compose(router -> {
           HttpServerOptions so = new HttpServerOptions()
