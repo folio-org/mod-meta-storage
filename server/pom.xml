@@ -189,7 +189,9 @@
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <argLine>-Dpolyglot.engine.WarnInterpreterOnly=false</argLine>
+          <systemPropertyVariables>
+            <polyglot.engine.WarnInterpreterOnly>false</polyglot.engine.WarnInterpreterOnly>
+          </systemPropertyVariables>
         </configuration>
       </plugin>
       <plugin>
