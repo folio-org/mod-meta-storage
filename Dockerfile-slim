@@ -45,7 +45,7 @@ COPY --from=jre-build /build/jre jre
 COPY --from=jre-build /build/$JAR $JAR
 
 # run the jar on startup
-ENTRYPOINT jre/bin/java -XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI -jar $JAR
+ENTRYPOINT jre/bin/java -XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI -jar *.jar
 
 # Expose port locally in the container.
 EXPOSE 8081
