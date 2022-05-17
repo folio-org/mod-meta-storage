@@ -189,7 +189,7 @@
       <plugin>
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
-          <argLine>-XX:+UnlockExperimentalVMOptions -XX:+EnableJVMCI --module-path=${graal.compiler.dir} --upgrade-module-path=${graal.compiler.dir}/compiler.jar:${graal.compiler.dir}/compiler-management.jar</argLine>
+          <argLine>-Dpolyglot.engine.WarnInterpreterOnly=false</argLine>
         </configuration>
       </plugin>
       <plugin>
