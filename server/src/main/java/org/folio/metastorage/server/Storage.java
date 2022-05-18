@@ -19,9 +19,11 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -706,6 +708,66 @@ public class Storage {
               return MatchKeyMethod.get(vertx, tenant, id, method, params).compose(matchKeyMethod ->
                   recalculateMatchKeyValueTable(connection, matchKeyMethod, id));
             })
+    );
+  }
+
+  class StatsTrack {
+    UUID clusterId;
+    int clustersTotal;
+    Set<String> values;
+
+    Map<Integer, Integer> matchValuesPerCluster;
+  }
+
+  /**
+   * get match key statistics.
+   * @param id match key id (user specified)
+   * @return statistics
+   */
+  public Future<JsonObject> statsMatchKey(String id) {
+    String qry = "SELECT * FROM "
+        + clusterRecordTable + " LEFT JOIN " + clusterValueTable + " ON "
+        + clusterValueTable + ".cluster_id = " + clusterRecordTable + ".cluster_id"
+        + " WHERE " + clusterRecordTable + ".match_key_config_id = $1";
+
+    Tuple tuple = Tuple.of(id);
+    return pool.withConnection(connection ->
+        connection.prepare(qry).compose(pq ->
+            connection.begin().compose(tx -> {
+              StatsTrack st = new StatsTrack();
+              st.matchValuesPerCluster = new HashMap<>();
+              st.values = new HashSet<>();
+              Promise<JsonObject> promise = Promise.promise();
+              RowStream<Row> stream = pq.createStream(sqlStreamFetchSize, tuple);
+              stream.handler(row -> {
+                UUID clusterId = row.getUUID("cluster_id");
+                if (!clusterId.equals(st.clusterId)) {
+                  if (st.clusterId != null) {
+                    st.matchValuesPerCluster.merge(st.values.size(), 1, (x, y) -> x + y);
+                  }
+                  st.clustersTotal++;
+                  st.values.clear();
+                  st.clusterId = clusterId;
+                }
+                String v = row.getString("match_value");
+                if (v != null) {
+                  st.values.add(v);
+                }
+                log.info("row = {}", () -> row.deepToString()); // TODO: log.debug
+              });
+              stream.endHandler(end -> {
+                if (st.clusterId != null) {
+                  st.matchValuesPerCluster.merge(st.values.size(), 1, (x, y) -> x + y);
+                }
+                JsonObject values = new JsonObject();
+                st.matchValuesPerCluster.forEach((k, v) -> values.put(Integer.toString(k), v));
+                promise.complete(new JsonObject()
+                    .put("clustersTotal", st.clustersTotal)
+                    .put("matchValuesPerCluster", values));
+              });
+              return promise.future();
+            })
+        )
     );
   }
 

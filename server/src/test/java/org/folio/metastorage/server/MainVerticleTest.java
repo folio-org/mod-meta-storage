@@ -899,7 +899,11 @@ public class MainVerticleTest {
   }
 
   @Test
-  public void testClustersMove() throws XMLStreamException {
+  public void testClustersMove() {
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/matchkeys/isbn/stats")
+        .then().statusCode(404);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -909,6 +913,13 @@ public class MainVerticleTest {
 
     createIsbnMatchKey();
     createIssnMatchKey();
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/matchkeys/isbn/stats")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("clustersTotal", is(0));
 
     String sourceId1 = UUID.randomUUID().toString();
     JsonArray records1 = new JsonArray()
@@ -959,6 +970,23 @@ public class MainVerticleTest {
         .body("items[1].records", hasSize(1))
         .extract().body().asString();
     verifyClusterResponse(s, List.of("S101"), List.of("S102"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/matchkeys/isbn/stats")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("clustersTotal", is(2))
+        .body("matchValuesPerCluster.1", is(1))
+        .body("matchValuesPerCluster.2", is(1));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/matchkeys/issn/stats")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("clustersTotal", is(1))
+        .body("matchValuesPerCluster.1", is(1));
 
     String clusterId = new JsonObject(s).getJsonArray("items").getJsonObject(0).getString("clusterId");
     String datestamp = new JsonObject(s).getJsonArray("items").getJsonObject(0).getString("datestamp");
@@ -1203,6 +1231,15 @@ public class MainVerticleTest {
             )
         );
     ingestRecords(records1, sourceId1);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/matchkeys/isbn/stats")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("clustersTotal", is(3))
+        .body("matchValuesPerCluster.0", is(2))
+        .body("matchValuesPerCluster.1", is(1));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
