@@ -714,8 +714,7 @@ public class Storage {
   class StatsTrack {
     UUID clusterId;
     int clustersTotal;
-    Set<String> values;
-
+    final Set<String> values = new HashSet<>();
     Map<Integer, Integer> matchValuesPerCluster;
   }
 
@@ -728,7 +727,8 @@ public class Storage {
     String qry = "SELECT * FROM "
         + clusterRecordTable + " LEFT JOIN " + clusterValueTable + " ON "
         + clusterValueTable + ".cluster_id = " + clusterRecordTable + ".cluster_id"
-        + " WHERE " + clusterRecordTable + ".match_key_config_id = $1";
+        + " WHERE " + clusterRecordTable + ".match_key_config_id = $1"
+        + " ORDER BY " + clusterValueTable + ".cluster_id";
 
     Tuple tuple = Tuple.of(id);
     return pool.withConnection(connection ->
@@ -736,7 +736,6 @@ public class Storage {
             connection.begin().compose(tx -> {
               StatsTrack st = new StatsTrack();
               st.matchValuesPerCluster = new HashMap<>();
-              st.values = new HashSet<>();
               Promise<JsonObject> promise = Promise.promise();
               RowStream<Row> stream = pq.createStream(sqlStreamFetchSize, tuple);
               stream.handler(row -> {
@@ -753,7 +752,7 @@ public class Storage {
                 if (v != null) {
                   st.values.add(v);
                 }
-                log.info("row = {}", () -> row.deepToString()); // TODO: log.debug
+                log.info("row = {}", row::deepToString); // TODO: log.debug
               });
               stream.endHandler(end -> {
                 if (st.clusterId != null) {
