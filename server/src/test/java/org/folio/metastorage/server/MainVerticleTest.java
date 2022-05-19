@@ -1973,6 +1973,47 @@ public class MainVerticleTest {
         .body("matchValuesPerCluster.3", is(1))
     ;
 
+    String sourceId2 = UUID.randomUUID().toString();
+    JsonArray records2 = new JsonArray()
+        .add(new JsonObject()
+            .put("localId", "S101")
+            .put("payload", new JsonObject()
+                .put("marc", new JsonObject().put("leader", "00914naa  2200337   450 "))
+                .put("inventory", new JsonObject()
+                    .put("isbn", new JsonArray().add("6"))
+                )
+            )
+        );
+    ingestRecords(records2, sourceId2);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/matchkeys/isbn/stats")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("clustersTotal", is(6))
+        .body("matchValuesPerCluster.0", is(2))
+        .body("matchValuesPerCluster.1", is(3))
+        .body("matchValuesPerCluster.3", is(1))
+    ;
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .param("query", "sourceId = " + sourceId2)
+        .delete("/meta-storage/records")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/matchkeys/isbn/stats")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("clustersTotal", is(5))
+        .body("matchValuesPerCluster.0", is(2))
+        .body("matchValuesPerCluster.1", is(2))
+        .body("matchValuesPerCluster.3", is(1));
+
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
         .header("Content-Type", "application/json")
