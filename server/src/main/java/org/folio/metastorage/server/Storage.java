@@ -656,14 +656,14 @@ public class Storage {
       String matchKeyConfigId) {
 
     String query = "SELECT * FROM " + globalRecordTable;
-    AtomicInteger count = new AtomicInteger();
+    AtomicInteger totalRecords = new AtomicInteger();
     return connection.prepare(query).compose(pq ->
         connection.begin().compose(tx -> {
           RowStream<Row> stream = pq.createStream(sqlStreamFetchSize);
           Promise<JsonObject> promise = Promise.promise();
           stream.handler(row -> {
             stream.pause();
-            count.incrementAndGet();
+            totalRecords.incrementAndGet();
 
             UUID globalId = row.getUUID("id");
             Set<String> keys = new HashSet<>();
@@ -674,7 +674,7 @@ public class Storage {
           });
           stream.endHandler(end -> {
             tx.commit();
-            promise.complete(new JsonObject().put("count", count.get()));
+            promise.complete(new JsonObject().put("totalRecords", totalRecords.get()));
           });
           stream.exceptionHandler(e -> {
             log.error(e.getMessage(), e);
@@ -715,7 +715,10 @@ public class Storage {
     UUID clusterId;
     int clustersTotal;
     final Set<String> values = new HashSet<>();
-    Map<Integer, Integer> matchValuesPerCluster;
+    final Set<UUID> recordIds = new HashSet<>();
+    final Map<Integer, Integer> matchValuesPerCluster = new HashMap<>();
+
+    final Map<Integer, Integer> recordsPerCluster = new HashMap<>();
   }
 
   /**
@@ -735,7 +738,6 @@ public class Storage {
         connection.prepare(qry).compose(pq ->
             connection.begin().compose(tx -> {
               StatsTrack st = new StatsTrack();
-              st.matchValuesPerCluster = new HashMap<>();
               Promise<JsonObject> promise = Promise.promise();
               RowStream<Row> stream = pq.createStream(sqlStreamFetchSize, tuple);
               stream.handler(row -> {
@@ -743,26 +745,43 @@ public class Storage {
                 if (!clusterId.equals(st.clusterId)) {
                   if (st.clusterId != null) {
                     st.matchValuesPerCluster.merge(st.values.size(), 1, (x, y) -> x + y);
+                    st.recordsPerCluster.merge(st.recordIds.size(), 1, (x, y) -> x + y);
                   }
                   st.clustersTotal++;
                   st.values.clear();
+                  st.recordIds.clear();
                   st.clusterId = clusterId;
                 }
                 String v = row.getString("match_value");
                 if (v != null) {
                   st.values.add(v);
                 }
-                log.info("row = {}", row::deepToString); // TODO: log.debug
+                UUID recordId = row.getUUID("record_id");
+                if (recordId != null) {
+                  st.recordIds.add(recordId);
+                }
+                log.debug("row = {}", row::deepToString);
               });
               stream.endHandler(end -> {
                 if (st.clusterId != null) {
                   st.matchValuesPerCluster.merge(st.values.size(), 1, (x, y) -> x + y);
+                  st.recordsPerCluster.merge(st.recordIds.size(), 1, (x, y) -> x + y);
                 }
-                JsonObject values = new JsonObject();
-                st.matchValuesPerCluster.forEach((k, v) -> values.put(Integer.toString(k), v));
+                JsonObject matchValuesPer = new JsonObject();
+                st.matchValuesPerCluster.forEach((k, v) ->
+                    matchValuesPer.put(Integer.toString(k), v));
+                JsonObject recordsPer = new JsonObject();
+                AtomicInteger totalRecs = new AtomicInteger();
+                st.recordsPerCluster.forEach((k, v) -> {
+                  recordsPer.put(Integer.toString(k), v);
+                  totalRecs.addAndGet(k * v);
+                });
                 promise.complete(new JsonObject()
+                    .put("recordsTotal", totalRecs.get())
                     .put("clustersTotal", st.clustersTotal)
-                    .put("matchValuesPerCluster", values));
+                    .put("matchValuesPerCluster", matchValuesPer)
+                    .put("recordsPerCluster", recordsPer)
+                );
               });
               return promise.future();
             })

@@ -1283,7 +1283,9 @@ public class MainVerticleTest {
         .body(matchKey.encode())
         .put("/meta-storage/config/matchkeys/" + matchKey.getString("id") + "/initialize")
         .then().statusCode(200)
-        .contentType("application/json");
+        .contentType("application/json")
+        .body("totalRecords", is(2))
+    ;
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1353,7 +1355,9 @@ public class MainVerticleTest {
         .body(matchKey.encode())
         .put("/meta-storage/config/matchkeys/" + matchKey.getString("id") + "/initialize")
         .then().statusCode(200)
-        .contentType("application/json");
+        .contentType("application/json")
+        .body("totalRecords", is(7))
+    ;
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1905,7 +1909,9 @@ public class MainVerticleTest {
         .get("/meta-storage/config/matchkeys/isbn/stats")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("clustersTotal", is(0));
+        .body("recordsTotal", is(0))
+        .body("clustersTotal", is(0))
+    ;
 
     String sourceId1 = UUID.randomUUID().toString();
     JsonArray records1 = new JsonArray()
@@ -1967,10 +1973,13 @@ public class MainVerticleTest {
         .get("/meta-storage/config/matchkeys/isbn/stats")
         .then().statusCode(200)
         .contentType("application/json")
+        .body("recordsTotal", is(6))
         .body("clustersTotal", is(5))
         .body("matchValuesPerCluster.0", is(2))
         .body("matchValuesPerCluster.1", is(2))
         .body("matchValuesPerCluster.3", is(1))
+        .body("recordsPerCluster.1", is(4))
+        .body("recordsPerCluster.2", is(1))
     ;
 
     String sourceId2 = UUID.randomUUID().toString();
@@ -1991,10 +2000,13 @@ public class MainVerticleTest {
         .get("/meta-storage/config/matchkeys/isbn/stats")
         .then().statusCode(200)
         .contentType("application/json")
+        .body("recordsTotal", is(7))
         .body("clustersTotal", is(6))
         .body("matchValuesPerCluster.0", is(2))
         .body("matchValuesPerCluster.1", is(3))
         .body("matchValuesPerCluster.3", is(1))
+        .body("recordsPerCluster.1", is(5))
+        .body("recordsPerCluster.2", is(1))
     ;
 
     RestAssured.given()
@@ -2009,10 +2021,14 @@ public class MainVerticleTest {
         .get("/meta-storage/config/matchkeys/isbn/stats")
         .then().statusCode(200)
         .contentType("application/json")
+        .body("recordsTotal", is(6))
         .body("clustersTotal", is(5))
         .body("matchValuesPerCluster.0", is(2))
         .body("matchValuesPerCluster.1", is(2))
-        .body("matchValuesPerCluster.3", is(1));
+        .body("matchValuesPerCluster.3", is(1))
+        .body("recordsPerCluster.1", is(4))
+        .body("recordsPerCluster.2", is(1))
+    ;
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
