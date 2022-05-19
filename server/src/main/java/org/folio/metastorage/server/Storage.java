@@ -756,10 +756,7 @@ public class Storage {
                 if (v != null) {
                   st.values.add(v);
                 }
-                UUID recordId = row.getUUID("record_id");
-                if (recordId != null) {
-                  st.recordIds.add(recordId);
-                }
+                st.recordIds.add(row.getUUID("record_id"));
                 log.debug("row = {}", row::deepToString);
               });
               stream.endHandler(end -> {
