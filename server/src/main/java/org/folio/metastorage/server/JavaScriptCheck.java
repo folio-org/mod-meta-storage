@@ -1,6 +1,5 @@
 package org.folio.metastorage.server;
 
-import io.vertx.core.Future;
 import org.graalvm.polyglot.Value;
 
 public final class JavaScriptCheck {
