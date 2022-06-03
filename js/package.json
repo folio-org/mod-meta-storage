@@ -1,5 +1,6 @@
 {
   "license": "Apache-2.0",
+  "type": "module",
   "scripts": {
     "lint-goldrush": "eslint matchkeys/goldrush/goldrush.js",
     "lint-test": "eslint test/main.js",
