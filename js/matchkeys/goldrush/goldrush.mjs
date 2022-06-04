@@ -426,4 +426,3 @@ export function matchkey(record) {
   keyStr += addComponent(doElectronicIndicator(marcObj));
   return keyStr.toLowerCase();
 }
-

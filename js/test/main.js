@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import {matchkey} from '../matchkeys/goldrush/goldrush.mjs';
+import { matchkey } from '../matchkeys/goldrush/goldrush.mjs';
 
 function assert(result, message) {
   if (result) {
@@ -27,7 +27,7 @@ for (let n = 0; n < testFiles.length; n += 1) {
   const marcJsonStr = fs.readFileSync(testFile, 'utf8');
   try {
     const marcJson = JSON.parse(marcJsonStr);
-    const payloadJson = {marc: marcJson};
+    const payloadJson = { marc: marcJson };
     const payloadJsonStr = JSON.stringify(payloadJson);
     keyStrGoldrush = matchkey(payloadJsonStr);
   } catch (e) {
