@@ -176,8 +176,10 @@ public class Client {
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       MarcXmlWriter writer = new MarcXmlWriter(out);
       if (charCodingScheme == ' ') {
+        //this should never be used as we instruct the parser to convert to UTF-8
         writer.setConverter(new AnselToUnicode());
       }
+      writer.setCheckNonXMLChars(true);
       writer.write(marcRecord);
       writer.close();
       return out.toString();
