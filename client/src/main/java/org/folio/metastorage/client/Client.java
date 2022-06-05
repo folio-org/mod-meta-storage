@@ -37,7 +37,7 @@ import org.folio.metastorage.util.AsyncCodec;
 import org.folio.metastorage.util.XmlJsonUtil;
 import org.folio.okapi.common.GenericCompositeFuture;
 import org.folio.okapi.common.XOkapiHeaders;
-import org.marc4j.MarcStreamReader;
+import org.marc4j.MarcPermissiveStreamReader;
 import org.marc4j.MarcXmlWriter;
 import org.marc4j.converter.impl.AnselToUnicode;
 
@@ -149,10 +149,10 @@ public class Client {
   }
 
   private class MarcReaderProxy implements ReaderProxy {
-    private MarcStreamReader marcReader;
+    private MarcPermissiveStreamReader marcReader;
     private org.marc4j.marc.Record marcRecord;
 
-    public MarcReaderProxy(MarcStreamReader reader) {
+    public MarcReaderProxy(MarcPermissiveStreamReader reader) {
       if (reader == null) {
         throw new IllegalArgumentException("Argument reader cannot be null");
       }
@@ -360,7 +360,8 @@ public class Client {
   }
 
   Future<Void> sendIso2709(InputStream stream) {
-    return Future.<Void>future(p -> sendChunk(new MarcReaderProxy(new MarcStreamReader(stream)), p))
+    return Future.<Void>future(p -> sendChunk(
+      new MarcReaderProxy(new MarcPermissiveStreamReader(stream, true, true)), p))
         .eventually(x -> {
           try {
             stream.close();
