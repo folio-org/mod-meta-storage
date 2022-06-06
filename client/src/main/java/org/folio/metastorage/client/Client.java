@@ -55,7 +55,7 @@ public class Client {
   int limit;
   boolean echo = false;
   boolean compress = false;
-  boolean strict;
+  boolean strict = false;
   Integer localSequence = 0;
   WebClient webClient;
   Vertx vertx;
@@ -176,17 +176,17 @@ public class Client {
     }
 
     public String parseNext() {
-      char charCodingScheme = marcRecord.getLeader().getCharCodingScheme();
-      if (charCodingScheme == ' ') {
-        marcRecord.getLeader().setCharCodingScheme('a');
-      }
       ByteArrayOutputStream out = new ByteArrayOutputStream();
       MarcXmlWriter writer = new MarcXmlWriter(out);
+      char charCodingScheme = marcRecord.getLeader().getCharCodingScheme();
+      System.err.println("Char coding scheme" + charCodingScheme);
       if (charCodingScheme == ' ') {
-        //this should never be used as we instruct the parser to convert to UTF-8
+        //ansel converter already escapes non-XML chars
+        marcRecord.getLeader().setCharCodingScheme('a');
         writer.setConverter(new AnselToUnicode());
-      }
-      if (!strict) { 
+      } else {
+        //for UTF-8 encoded recs we need to additionally strip non-XML chars
+        //permissive parser is configured always in this mode
         writer.setCheckNonXMLChars(true);
       }
       writer.write(marcRecord);
