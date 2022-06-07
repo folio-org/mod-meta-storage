@@ -45,9 +45,17 @@ public class ClientTest {
 
   @Test
   public void fileNotFound(TestContext context) {
-    String [] args = { "unknownfile" };
+    String [] args = { "--source", "S1", "unknownfile" };
     Client.exec(vertx, args).onComplete(context.asyncAssertFailure(x -> {
       context.assertEquals("unknownfile (No such file or directory)", x.getMessage());
+    }));
+  }
+
+  @Test
+  public void missingSource(TestContext context) {
+    String [] args = { "unknownfile" };
+    Client.exec(vertx, args).onComplete(context.asyncAssertFailure(x -> {
+      context.assertEquals("source identifier must be given", x.getMessage());
     }));
   }
 
@@ -114,9 +122,9 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    String sourceId = "S1";
     String [] args = {
-        "--source", sourceId.toString(),
+        "--source", sourceId,
         "--purge",
         "--init"
     };
@@ -147,10 +155,10 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    String sourceId = "S1";
     String [] args = {
         "--chunk", "2",
-        "--source", sourceId.toString(),
+        "--source", sourceId,
         "--xsl", "../xsl/marc2inventory-instance.xsl",
         "src/test/resources/marc3.marc"
     };
@@ -162,13 +170,13 @@ public class ClientTest {
 
           // first chunk with 2 records
           JsonObject r = requests.getJsonObject(0);
-          context.assertEquals(sourceId.toString(), r.getString("sourceId"));
+          context.assertEquals(sourceId, r.getString("sourceId"));
           context.assertEquals(2, r.getJsonArray("records").size());
           context.assertEquals("   73209622 //r823", r.getJsonArray("records").getJsonObject(0).getString("localId"));
           context.assertEquals("   11224466 ", r.getJsonArray("records").getJsonObject(1).getString("localId"));
           // second with 1 record
           r = requests.getJsonObject(1);
-          context.assertEquals(sourceId.toString(), r.getString("sourceId"));
+          context.assertEquals(sourceId, r.getString("sourceId"));
           context.assertEquals(1, r.getJsonArray("records").size());
           context.assertEquals("   77123332 ", r.getJsonArray("records").getJsonObject(0).getString("localId"));
         }));
@@ -195,10 +203,10 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    String sourceId = "S1";
     String [] args = {
         "--chunk", "4",
-        "--source", sourceId.toString(),
+        "--source", sourceId,
         "--xsl", "../xsl/marc2inventory-instance.xsl",
         "src/test/resources/record10.xml"
     };
@@ -210,15 +218,15 @@ public class ClientTest {
 
           // first chunk with 4 records
           JsonObject r = requests.getJsonObject(0);
-          context.assertEquals(sourceId.toString(), r.getString("sourceId"));
+          context.assertEquals(sourceId, r.getString("sourceId"));
           context.assertEquals(4, r.getJsonArray("records").size());
           // 2nd chunk with 4 records
           r = requests.getJsonObject(1);
-          context.assertEquals(sourceId.toString(), r.getString("sourceId"));
+          context.assertEquals(sourceId, r.getString("sourceId"));
           context.assertEquals(4, r.getJsonArray("records").size());
           // last chunk with 2 records
           r = requests.getJsonObject(2);
-          context.assertEquals(sourceId.toString(), r.getString("sourceId"));
+          context.assertEquals(sourceId, r.getString("sourceId"));
           context.assertEquals(2, r.getJsonArray("records").size());
         }));
   }
@@ -244,10 +252,10 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    String sourceId = "S1";
     String [] args = {
         "--chunk", "4",
-        "--source", sourceId.toString(),
+        "--source", sourceId,
         "--compress",
         "--xsl", "../xsl/marc2inventory-instance.xsl",
         "src/test/resources/record10.xml"
@@ -260,15 +268,15 @@ public class ClientTest {
 
           // first chunk with 4 records
           JsonObject r = requests.getJsonObject(0);
-          context.assertEquals(sourceId.toString(), r.getString("sourceId"));
+          context.assertEquals(sourceId, r.getString("sourceId"));
           context.assertEquals(4, r.getJsonArray("records").size());
           // 2nd chunk with 4 records
           r = requests.getJsonObject(1);
-          context.assertEquals(sourceId.toString(), r.getString("sourceId"));
+          context.assertEquals(sourceId, r.getString("sourceId"));
           context.assertEquals(4, r.getJsonArray("records").size());
           // last chunk with 2 records
           r = requests.getJsonObject(2);
-          context.assertEquals(sourceId.toString(), r.getString("sourceId"));
+          context.assertEquals(sourceId, r.getString("sourceId"));
           context.assertEquals(2, r.getJsonArray("records").size());
         }));
   }
@@ -294,10 +302,10 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    String sourceId = "S1";
     String [] args = {
         "--chunk", "4",
-        "--source", sourceId.toString(),
+        "--source", sourceId,
         "--http2",
         "--xsl", "../xsl/marc2inventory-instance.xsl",
         "src/test/resources/record10.xml"
@@ -307,7 +315,7 @@ public class ClientTest {
     future.eventually(x -> httpServer.close())
         .onComplete(context.asyncAssertSuccess(res -> {
           context.assertEquals(3, requests.size());
-          
+
           // first chunk with 4 records
           JsonObject r = requests.getJsonObject(0);
           context.assertEquals(sourceId.toString(), r.getString("sourceId"));
@@ -344,7 +352,7 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    String sourceId = "S1";
     String [] args = {
         "--chunk", "4",
         "--source", sourceId.toString(),
@@ -361,7 +369,7 @@ public class ClientTest {
 
           // 1 chunk with 2 records
           JsonObject r = requests.getJsonObject(0);
-          context.assertEquals(sourceId.toString(), r.getString("sourceId"));
+          context.assertEquals(sourceId, r.getString("sourceId"));
           context.assertEquals(2, r.getJsonArray("records").size());
 
           context.assertEquals("a2", r.getJsonArray("records").getJsonObject(0).getString("localId"));
@@ -390,10 +398,10 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    String sourceId = "S1";
     String [] args = {
         "--chunk", "4",
-        "--source", sourceId.toString(),
+        "--source", sourceId,
         "--xsl", "../xsl/marc2inventory-instance.xsl",
         "--offset", "1",
         "--limit", "2",
@@ -429,10 +437,10 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    String sourceId = "S1";
     String [] args = {
         "--chunk", "4",
-        "--source", sourceId.toString(),
+        "--source", sourceId,
         "--xsl", "../xsl/marc2inventory-instance.xsl",
         "--offset", "1",
         "--limit", "2",
