@@ -7,7 +7,7 @@ public class SourceId {
   private static final String PATTERN_STRING = "^[a-zA-Z0-9:/-]{1,16}$";
   private static final Pattern PATTERN_COMPILED = Pattern.compile(PATTERN_STRING);
 
-  final String sourceId;
+  final String sourceIdentifier;
 
   /**
    * Construct source identifier.
@@ -18,10 +18,10 @@ public class SourceId {
     if (!PATTERN_COMPILED.matcher(s).find()) {
       throw new IllegalArgumentException(s + " does not match " + PATTERN_STRING);
     }
-    this.sourceId = s.toUpperCase();
+    this.sourceIdentifier = s.toUpperCase();
   }
 
   public String toString() {
-    return sourceId;
+    return sourceIdentifier;
   }
 }

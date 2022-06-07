@@ -18,7 +18,7 @@ public class SourceIdTest {
   @Test
   public void bad() {
     Assert.assertThrows(IllegalArgumentException.class, () -> new SourceId("_"));
-    Assert.assertThrows(IllegalArgumentException.class, () -> new SourceId("_a_").toString());
+    Assert.assertThrows(IllegalArgumentException.class, () -> new SourceId("_a_"));
     Assert.assertThrows(IllegalArgumentException.class, () -> new SourceId("01234567890123456"));
     Assert.assertThrows(IllegalArgumentException.class, () -> new SourceId(" "));
   }
