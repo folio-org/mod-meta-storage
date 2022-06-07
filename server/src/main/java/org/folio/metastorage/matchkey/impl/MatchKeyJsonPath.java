@@ -31,7 +31,7 @@ public class MatchKeyJsonPath implements MatchKeyMethod {
       Object o = ctx.read(jsonPath);
       if (o instanceof String string) {
         keys.add(string);
-      } else if (o instanceof List list) {
+      } else if (o instanceof List<?> list) {
         for (Object m : list) {
           if (!(m instanceof String)) {
             return;
