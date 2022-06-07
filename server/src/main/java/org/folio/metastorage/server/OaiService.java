@@ -159,7 +159,7 @@ public final class OaiService {
           + " WHERE match_key_config_id = $1");
       int no = 2;
       if (token != null) {
-        tupleList.add(token.getFrom()); // from from resumptionToken is with fraction of seconds
+        tupleList.add(token.getFrom()); // from resumptionToken is with fraction of seconds
         sqlQuery.append(" AND datestamp >= $" + no);
         no++;
       } else if (from != null) {
