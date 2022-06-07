@@ -203,7 +203,7 @@ public final class OaiService {
    * @param rowSet global_records rowSet (empty if no record entries: deleted)
    * @param clusterId cluster identifier that this record is part of
    * @param matchValues match values for this cluster
-   * @return
+   * @return metadata record string; null if it's deleted record
    */
   static String getMetadata(RowSet<Row> rowSet, UUID clusterId, List<String> matchValues) {
     RowIterator<Row> iterator = rowSet.iterator();
