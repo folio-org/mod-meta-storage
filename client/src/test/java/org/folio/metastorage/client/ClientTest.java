@@ -12,6 +12,8 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.handler.BodyHandler;
 
 import java.util.UUID;
+
+import org.folio.metastorage.util.SourceId;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
@@ -200,7 +202,7 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    SourceId sourceId = new SourceId("source-1");
     String [] args = {
         "--chunk", "2",
         "--source", sourceId.toString(),
@@ -236,7 +238,7 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    SourceId sourceId = new SourceId("source-1");
     String [] args = {
         "--chunk", "2",
         "--source", sourceId.toString(),
@@ -284,7 +286,7 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    SourceId sourceId = new SourceId("source-1");
     String [] args = {
         "--chunk", "2",
         "--source", sourceId.toString(),
@@ -321,7 +323,7 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    SourceId sourceId = new SourceId("source-1");
     String [] args = {
         "--chunk", "2",
         "--source", sourceId.toString(),
@@ -358,7 +360,7 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    SourceId sourceId = new SourceId("source-1");
     String [] args = {
         "--chunk", "2",
         "--source", sourceId.toString(),
@@ -395,7 +397,7 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    SourceId sourceId = new SourceId("source-1");
     String [] args = {
         "--chunk", "2",
         "--source", sourceId.toString(),
@@ -431,7 +433,7 @@ public class ClientTest {
     httpServer.requestHandler(router);
     Future<Void> future = httpServer.listen(PORT).mapEmpty();
 
-    UUID sourceId = UUID.randomUUID();
+    SourceId sourceId = new SourceId("source-1");
     String [] args = {
         "--chunk", "2",
         "--source", sourceId.toString(),
