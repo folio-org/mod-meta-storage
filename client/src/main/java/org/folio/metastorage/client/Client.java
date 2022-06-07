@@ -45,7 +45,7 @@ import org.marc4j.converter.impl.AnselToUnicode;
 public class Client {
   static final Logger log = LogManager.getLogger(Client.class);
 
-  UUID sourceId = UUID.randomUUID();
+  UUID sourceId;
   MultiMap headers = MultiMap.caseInsensitiveMultiMap();
   int chunkSize = 1;
   int offset;

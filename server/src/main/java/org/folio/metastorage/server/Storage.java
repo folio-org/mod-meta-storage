@@ -396,6 +396,14 @@ public class Storage {
         .mapEmpty();
   }
 
+  private UUID parseUuid(String uuid) {
+    try {
+      return UUID.fromString(uuid);
+    } catch (Exception e) {
+      throw new IllegalArgumentException("Source UUID invalid or missing", e);
+    }
+  }
+
   /**
    * Update/insert set of global records.
    * @param vertx Vert.x handle
@@ -407,7 +415,7 @@ public class Storage {
             new ReadStreamConsumer<JsonObject, Void>()
               .consume(request, r ->
                 ingestGlobalRecord(
-                    vertx, UUID.fromString(request.topLevelObject().getString("sourceId")),
+                    vertx, parseUuid(request.topLevelObject().getString("sourceId")),
                     r, matchKeyConfigs)));
   }
 
