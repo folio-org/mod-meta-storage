@@ -184,11 +184,9 @@ public class Client {
         //ansel converter already escapes non-XML chars
         marcRecord.getLeader().setCharCodingScheme('a');
         writer.setConverter(new AnselToUnicode());
-      } else {
-        //for UTF-8 encoded recs we need to additionally strip non-XML chars
-        //permissive parser is configured always in this mode
-        writer.setCheckNonXMLChars(true);
       }
+      // we need to additionally strip non-XML chars
+      writer.setCheckNonXMLChars(true);
       writer.write(marcRecord);
       writer.close();
       return out.toString();
