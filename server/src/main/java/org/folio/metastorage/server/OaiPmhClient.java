@@ -54,12 +54,12 @@ public final class OaiPmhClient {
             + " WHERE id = $1")
         .execute(Tuple.of(id))
         .map(rowSet -> {
-              RowIterator<Row> iterator = rowSet.iterator();
-              if (!iterator.hasNext()) {
-                return null;
-              }
-              return iterator.next();
-            });
+          RowIterator<Row> iterator = rowSet.iterator();
+          if (!iterator.hasNext()) {
+            return null;
+          }
+          return iterator.next();
+        });
   }
 
   static Future<JsonObject> getConfig(Storage storage, String id) {
