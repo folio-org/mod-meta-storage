@@ -7,7 +7,8 @@
       "description": "OAI PMH Client identifier"
     },
     "headers": {
-      "type" : "object"
+      "type" : "object",
+      "description" : "HTTP headers to be used against OAI server"
     },
     "url" : {
       "type" : "string",
