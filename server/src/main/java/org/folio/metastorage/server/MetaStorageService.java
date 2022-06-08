@@ -323,6 +323,9 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
           add(routerBuilder, "putOaiPmhClient", OaiPmhClient::put);
           add(routerBuilder, "deleteOaiPmhClient", OaiPmhClient::delete);
           add(routerBuilder, "getCollectionOaiPmhClient", OaiPmhClient::getCollection);
+          add(routerBuilder, "startOaiPmhClient", OaiPmhClient::start);
+          add(routerBuilder, "stopOaiPmhClient", OaiPmhClient::stop);
+          add(routerBuilder, "statusOaiPmhClient", OaiPmhClient::status);
           Router router = Router.router(vertx);
           // this endpoint is streaming and we handle it without OpenAPI and validation
           router.put("/meta-storage/records").handler(ctx ->

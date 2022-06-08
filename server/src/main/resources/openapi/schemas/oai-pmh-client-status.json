@@ -1,0 +1,22 @@
+{
+  "description": "OAI PMH client status",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "OAI PMH Client identifier"
+    },
+    "status": {
+      "type" : "string",
+      "enum" : [ "idle", "running"]
+    },
+    "error" : {
+      "type" : "string",
+      "description" : "Error message for last error"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "id", "status"
+  ]
+}

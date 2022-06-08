@@ -218,6 +218,33 @@
           "permissionsRequired": [
 	    "meta-storage-pmh-clients.item.delete"
 	  ]
+        },
+        {
+          "methods": [
+            "POST"
+          ],
+          "pathPattern": "/meta-storage/pmh-clients/{id}/start",
+          "permissionsRequired": [
+	    "meta-storage-pmh-clients.start"
+	  ]
+        },
+        {
+          "methods": [
+            "POST"
+          ],
+          "pathPattern": "/meta-storage/pmh-clients/{id}/stop",
+          "permissionsRequired": [
+	    "meta-storage-pmh-clients.stop"
+	  ]
+        },
+        {
+          "methods": [
+            "GET"
+          ],
+          "pathPattern": "/meta-storage/pmh-clients/{id}/status",
+          "permissionsRequired": [
+	    "meta-storage-pmh-clients.status"
+	  ]
         }
       ]
     }
@@ -346,7 +373,22 @@
     {
       "permissionName": "meta-storage-pmh-clients.item.delete",
       "displayName": "meta storage - OAI PMH item delete",
-      "description": "Delete OAI PMH client "
+      "description": "Delete OAI PMH client"
+    },
+    {
+      "permissionName": "meta-storage-pmh-clients.start",
+      "displayName": "meta storage - OAI PMH client start",
+      "description": "Start OAI PMH client"
+    },
+    {
+      "permissionName": "meta-storage-pmh-clients.stop",
+      "displayName": "meta storage - OAI PMH client stop",
+      "description": "Stop OAI PMH client"
+    },
+    {
+      "permissionName": "meta-storage-pmh-clients.status",
+      "displayName": "meta storage - OAI PMH client status",
+      "description": "Get OAI PMH status"
     },
     {
       "permissionName": "meta-storage-pmh-clients.all",
@@ -357,7 +399,10 @@
         "meta-storage-pmh-clients.collection.get",
         "meta-storage-pmh-clients.item.get",
         "meta-storage-pmh-clients.item.put",
-        "meta-storage-pmh-clients.item.delete"
+        "meta-storage-pmh-clients.item.delete",
+        "meta-storage-pmh-clients.start",
+        "meta-storage-pmh-clients.stop",
+        "meta-storage-pmh-clients.status"
       ]
     },
     {

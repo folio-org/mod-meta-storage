@@ -9,8 +9,9 @@ import java.time.format.DateTimeParseException;
 import java.time.temporal.ChronoUnit;
 
 public final class Util {
-
-  private Util() { }
+  private Util() {
+    throw new UnsupportedOperationException("Util");
+  }
 
   static String getParameterString(RequestParameter parameter) {
     return parameter == null ? null : parameter.getString();

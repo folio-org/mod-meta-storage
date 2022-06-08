@@ -2046,7 +2046,7 @@ public class MainVerticleTest {
   }
 
   @Test
-  public void oaiPmhClient1() {
+  public void oaiPmhClientCRUD() {
     String pmhClientId = "1";
 
     RestAssured.given()
@@ -2136,5 +2136,65 @@ public class MainVerticleTest {
         .then().statusCode(404)
         .contentType("text/plain")
         .body(Matchers.is(pmhClientId));
+  }
+
+  @Test
+  public void oaiPmhClientJobs() {
+    String pmhClientId = "2";
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .post("/meta-storage/pmh-clients/" + pmhClientId + "/start")
+        .then().statusCode(404)
+        .contentType("text/plain")
+        .body(Matchers.is(pmhClientId));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
+        .then().statusCode(404)
+        .contentType("text/plain")
+        .body(Matchers.is(pmhClientId));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .post("/meta-storage/pmh-clients/" + pmhClientId + "/stop")
+        .then().statusCode(404)
+        .contentType("text/plain")
+        .body(Matchers.is(pmhClientId));
+
+    JsonObject oaiPmhClient = new JsonObject()
+        .put("url", "http://localhost:" + OKAPI_PORT + " /meta-storage/oai")
+        .put("id", pmhClientId);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .post("/meta-storage/pmh-clients")
+        .then().statusCode(201)
+        .contentType("application/json")
+        .body(Matchers.is(oaiPmhClient.encode()));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .post("/meta-storage/pmh-clients/" + pmhClientId + "/start")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
+        .then().statusCode(200)
+        .contentType("application/json");
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .post("/meta-storage/pmh-clients/" + pmhClientId + "/stop")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .delete("/meta-storage/pmh-clients/" + pmhClientId)
+        .then().statusCode(204);
   }
 }

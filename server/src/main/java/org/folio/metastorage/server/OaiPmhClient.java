@@ -16,10 +16,13 @@ import org.folio.okapi.common.HttpResponse;
 public final class OaiPmhClient {
   private static final Logger log = LogManager.getLogger(OaiPmhClient.class);
 
-  private OaiPmhClient() { }
+  private OaiPmhClient() {
+    throw new UnsupportedOperationException("OaiPmhClient");
+  }
 
   /**
    * Create OAI-PMH client.
+   *
    * @param ctx routing context
    * @return async result
    */
@@ -39,6 +42,20 @@ public final class OaiPmhClient {
         });
   }
 
+  static Future<JsonObject> getConfig(Storage storage, String id) {
+    return storage.getPool().preparedQuery("SELECT config FROM " + storage.getOaiPmhClientTable()
+            + " WHERE id = $1")
+        .execute(Tuple.of(id))
+        .map(rowSet -> {
+          RowIterator<Row> iterator = rowSet.iterator();
+          if (!iterator.hasNext()) {
+            return null;
+          }
+          JsonObject config = iterator.next().getJsonObject("config");
+          return config.put("id", id);
+        });
+  }
+
   /**
    * Get OAI-PMH client.
    * @param ctx routing context
@@ -48,19 +65,14 @@ public final class OaiPmhClient {
     Storage storage = new Storage(ctx);
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
-    return storage.getPool().preparedQuery("SELECT config FROM " + storage.getOaiPmhClientTable()
-            + " WHERE id = $1")
-        .execute(Tuple.of(id))
-        .map(rowSet -> {
-          RowIterator<Row> iterator = rowSet.iterator();
-          if (!iterator.hasNext()) {
-            HttpResponse.responseError(ctx, 404, id);
-          } else {
-            JsonObject config = iterator.next().getJsonObject("config");
-            HttpResponse.responseJson(ctx, 200).end(config.put("id", id).encode());
-          }
-          return null;
-        });
+    return getConfig(storage, id).map(config -> {
+      if (config == null) {
+        HttpResponse.responseError(ctx, 404, id);
+        return null;
+      }
+      HttpResponse.responseJson(ctx, 200).end(config.encode());
+      return null;
+    });
   }
 
   /**
@@ -115,7 +127,6 @@ public final class OaiPmhClient {
    * @return async result
    */
   public static Future<Void> put(RoutingContext ctx) {
-    log.info("AD: put");
     Storage storage = new Storage(ctx);
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
@@ -132,6 +143,68 @@ public final class OaiPmhClient {
           }
           return null;
         });
+  }
+
+  /**
+   * Start OAI PMH client job.
+   * @param ctx routing context
+   * @return async result
+   */
+  public static Future<Void> start(RoutingContext ctx) {
+    Storage storage = new Storage(ctx);
+    RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
+    String id = Util.getParameterString(params.pathParameter("id"));
+
+    return getConfig(storage, id).map(config -> {
+      if (config == null) {
+        HttpResponse.responseError(ctx, 404, id);
+        return null;
+      }
+      ctx.response().setStatusCode(204).end();
+      return null;
+    });
+  }
+
+  /**
+   * Stop OAI PMH client job.
+   * @param ctx routing context
+   * @return async result
+   */
+  public static Future<Void> stop(RoutingContext ctx) {
+    Storage storage = new Storage(ctx);
+    RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
+    String id = Util.getParameterString(params.pathParameter("id"));
+
+    return getConfig(storage, id).map(config -> {
+      if (config == null) {
+        HttpResponse.responseError(ctx, 404, id);
+        return null;
+      }
+      ctx.response().setStatusCode(204).end();
+      return null;
+    });
+  }
+
+  /**
+   * Get OAI PMH client status.
+   * @param ctx routing context
+   * @return async result
+   */
+  public static Future<Void> status(RoutingContext ctx) {
+    Storage storage = new Storage(ctx);
+    RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
+    String id = Util.getParameterString(params.pathParameter("id"));
+
+    return getConfig(storage, id).map(config -> {
+      if (config == null) {
+        HttpResponse.responseError(ctx, 404, id);
+        return null;
+      }
+      JsonObject status = new JsonObject();
+      status.put("status", "idle");
+      HttpResponse.responseJson(ctx, 200).end(status.encode());
+      return null;
+    });
   }
 
 }

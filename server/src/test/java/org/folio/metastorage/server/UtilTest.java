@@ -1,11 +1,17 @@
 package org.folio.metastorage.server;
 
+import org.folio.okapi.testing.UtilityClassTester;
 import org.junit.Assert;
 import org.junit.Test;
 
 import java.time.LocalDateTime;
 
 public class UtilTest {
+
+  @Test
+  public void isUtilityClass() {
+    UtilityClassTester.assertUtilityClass(Util.class);
+  }
 
   @Test
   public void dateParseFrom() {
