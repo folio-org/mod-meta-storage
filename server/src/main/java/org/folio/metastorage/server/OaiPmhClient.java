@@ -14,6 +14,13 @@ import org.apache.logging.log4j.Logger;
 import org.folio.okapi.common.HttpResponse;
 
 public final class OaiPmhClient {
+
+  public enum Status {
+    idle, running
+  }
+
+  private static final String STATUS_PROP = "status";
+
   private static final Logger log = LogManager.getLogger(OaiPmhClient.class);
 
   private OaiPmhClient() {
@@ -42,24 +49,39 @@ public final class OaiPmhClient {
         });
   }
 
-  static Future<JsonObject> getConfig(Storage storage, String id) {
+  static Future<Row> getOaiPmhClient(Storage storage, String id) {
     return storage.getPool().preparedQuery("SELECT * FROM " + storage.getOaiPmhClientTable()
             + " WHERE id = $1")
         .execute(Tuple.of(id))
         .map(rowSet -> {
-          RowIterator<Row> iterator = rowSet.iterator();
-          if (!iterator.hasNext()) {
-            return null;
-          }
-          Row row = iterator.next();
-          JsonObject job = row.getJsonObject("job");
-          if (job == null) {
-            job = new JsonObject().put("status", "idle");
-          }
-          return new JsonObject()
-              .put("config", row.getJsonObject("config"))
-              .put("job", job);
-        });
+              RowIterator<Row> iterator = rowSet.iterator();
+              if (!iterator.hasNext()) {
+                return null;
+              }
+              return iterator.next();
+            });
+  }
+
+  static Future<JsonObject> getConfig(Storage storage, String id) {
+    return getOaiPmhClient(storage, id).map(row -> {
+      if (row == null) {
+        return null;
+      }
+      return row.getJsonObject("config");
+    });
+  }
+
+  static Future<JsonObject> getJob(Storage storage, String id) {
+    return getOaiPmhClient(storage, id).map(row -> {
+      if (row == null) {
+        return null;
+      }
+      JsonObject job = row.getJsonObject("job");
+      if (job == null) {
+        job = new JsonObject().put(STATUS_PROP, Status.idle.name());
+      }
+      return job;
+    });
   }
 
   /**
@@ -76,8 +98,8 @@ public final class OaiPmhClient {
         HttpResponse.responseError(ctx, 404, id);
         return null;
       }
-      JsonObject conf = config.getJsonObject("config").put("id", id);
-      HttpResponse.responseJson(ctx, 200).end(conf.encode());
+      config.put("id", id);
+      HttpResponse.responseJson(ctx, 200).end(config.encode());
       return null;
     });
   }
@@ -169,19 +191,18 @@ public final class OaiPmhClient {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
-    return getConfig(storage, id)
-        .compose(config -> {
-          if (config == null) {
+    return getJob(storage, id)
+        .compose(job -> {
+          if (job == null) {
             HttpResponse.responseError(ctx, 404, id);
             return Future.succeededFuture();
           }
-          JsonObject job = config.getJsonObject("job");
-          String status = job.getString("status");
-          if ("running".equals(status)) {
+          String status = job.getString(STATUS_PROP);
+          if (Status.running.name().equals(status)) {
             HttpResponse.responseError(ctx, 400, "already running");
             return Future.succeededFuture();
           }
-          job.put("status", "running");
+          job.put(STATUS_PROP, Status.running.name());
           return updateJob(storage, id, job)
               .map(x -> {
                 ctx.response().setStatusCode(204).end();
@@ -201,18 +222,17 @@ public final class OaiPmhClient {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
-    return getConfig(storage, id).compose(config -> {
-      if (config == null) {
+    return getJob(storage, id).compose(job -> {
+      if (job == null) {
         HttpResponse.responseError(ctx, 404, id);
         return Future.succeededFuture();
       }
-      JsonObject job = config.getJsonObject("job");
-      String status = job.getString("status");
-      if ("idle".equals(status)) {
+      String status = job.getString(STATUS_PROP);
+      if (Status.idle.name().equals(status)) {
         HttpResponse.responseError(ctx, 400, "not running");
         return Future.succeededFuture();
       }
-      job.put("status", "idle");
+      job.put(STATUS_PROP, Status.idle.name());
       return updateJob(storage, id, job)
           .map(x -> {
             ctx.response().setStatusCode(204).end();
@@ -231,12 +251,11 @@ public final class OaiPmhClient {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
-    return getConfig(storage, id).map(config -> {
-      if (config == null) {
+    return getJob(storage, id).map(job -> {
+      if (job == null) {
         HttpResponse.responseError(ctx, 404, id);
         return null;
       }
-      JsonObject job = config.getJsonObject("job");
       HttpResponse.responseJson(ctx, 200).end(job.encode());
       return null;
     });
