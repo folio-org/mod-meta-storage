@@ -1,0 +1,34 @@
+{
+  "description": "OAI PMH client job",
+  "type": "object",
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "OAI PMH Client identifier"
+    },
+    "headers": {
+      "type" : "object"
+    },
+    "url" : {
+      "type" : "string",
+      "description" : "OAI PMH server prefix so that PREFIX?verb=.. works"
+    },
+    "from" : {
+      "type" : "string",
+      "description" : "OAI PMH from date"
+    },
+    "until" : {
+      "type" : "string",
+      "description" : "OAI PMH until date"
+    },
+    "resumptionToken" : {
+      "type" : "string",
+      "description" : "OAI PMH resumption token"
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "id", "url"
+  ]
+}
+

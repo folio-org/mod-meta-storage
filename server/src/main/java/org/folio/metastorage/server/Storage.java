@@ -52,6 +52,7 @@ public class Storage {
   final String clusterRecordTable;
   final String clusterValueTable;
   final String clusterMetaTable;
+  final String oaiPmhClientTable;
   private final String tenant;
   static int sqlStreamFetchSize = 50;
 
@@ -69,6 +70,7 @@ public class Storage {
     this.clusterRecordTable = pool.getSchema() + ".cluster_records";
     this.clusterValueTable = pool.getSchema() + ".cluster_values";
     this.clusterMetaTable = pool.getSchema() + ".cluster_meta";
+    this.oaiPmhClientTable = pool.getSchema() + ".oai_pmh_clients";
   }
 
   public Storage(RoutingContext routingContext) {
@@ -93,6 +95,10 @@ public class Storage {
 
   public String getClusterValuesTable() {
     return clusterValueTable;
+  }
+
+  public String getOaiPmhClientTable() {
+    return oaiPmhClientTable;
   }
 
   /**
@@ -143,7 +149,10 @@ public class Storage {
             "CREATE UNIQUE INDEX IF NOT EXISTS cluster_value_value_idx ON "
                 + clusterValueTable + "(match_key_config_id, match_value)",
             "CREATE INDEX IF NOT EXISTS cluster_value_cluster_idx ON "
-                + clusterValueTable + "(cluster_id)"
+                + clusterValueTable + "(cluster_id)",
+            CREATE_IF_NO_EXISTS + oaiPmhClientTable
+                + "(id VARCHAR NOT NULL PRIMARY KEY,"
+                + " config JSONB)"
         )
     ).mapEmpty();
   }

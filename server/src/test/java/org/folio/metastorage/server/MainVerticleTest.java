@@ -86,7 +86,7 @@ public class MainVerticleTest {
     vertx = Vertx.vertx();
     WebClient webClient = WebClient.create(vertx);
 
-    RestAssured.config=RestAssuredConfig.config()
+    RestAssured.config = RestAssuredConfig.config()
         .httpClient(HttpClientConfig.httpClientConfig()
             .setParam("http.socket.timeout", 10000)
             .setParam("http.connection.timeout", 5000));
@@ -126,9 +126,9 @@ public class MainVerticleTest {
         webClient.postAbs(OKAPI_URL + "/_/discovery/modules")
             .expect(ResponsePredicate.SC_CREATED)
             .sendJsonObject(new JsonObject()
-                    .put("instId", "mod-shared-index-1.0.0")
-                    .put("srvcId", "mod-shared-index-1.0.0")
-                    .put("url", MODULE_URL))
+                .put("instId", "mod-shared-index-1.0.0")
+                .put("srvcId", "mod-shared-index-1.0.0")
+                .put("url", MODULE_URL))
             .mapEmpty());
 
     // create tenant
@@ -145,7 +145,7 @@ public class MainVerticleTest {
             .sendJson(new JsonArray().add(new JsonObject()
                 .put("id", "mod-shared-index")
                 .put("action", "enable")))
-                .mapEmpty());
+            .mapEmpty());
     f.onComplete(context.asyncAssertSuccess());
   }
 
@@ -157,10 +157,11 @@ public class MainVerticleTest {
 
   /**
    * Test utility for calling tenant init
-   * @param context test context
-   * @param tenant tenant that we're dealing with.
+   *
+   * @param context          test context
+   * @param tenant           tenant that we're dealing with.
    * @param tenantAttributes tenant attributes as it would come from Okapi install.
-   * @param expectedError error to expect (null for expecting no error)
+   * @param expectedError    error to expect (null for expecting no error)
    */
   static void tenantOp(TestContext context, String tenant, JsonObject tenantAttributes, String expectedError) {
     ExtractableResponse<Response> response = RestAssured.given()
@@ -220,7 +221,7 @@ public class MainVerticleTest {
   public void testGetGlobalRecordsBadCqlField() {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
-        .param("query","foo=bar" )
+        .param("query", "foo=bar")
         .get("/meta-storage/records")
         .then().statusCode(400)
         .header("Content-Type", is("text/plain"))
@@ -591,10 +592,11 @@ public class MainVerticleTest {
 
   /**
    * Check that each records in each cluster contains exactly set of localIds.
-   * @param s cluster response
+   *
+   * @param s        cluster response
    * @param localIds expected localId values for each cluster
    */
-  static void verifyClusterResponse(String s, List<String> ... localIds) {
+  static void verifyClusterResponse(String s, List<String>... localIds) {
     List<Set<String>> foundIds = new ArrayList<>();
     JsonObject clusterResponse = new JsonObject(s);
     JsonArray items = clusterResponse.getJsonArray("items");
@@ -806,7 +808,7 @@ public class MainVerticleTest {
   }
 
   @Test
-  public void testClustersSameKey()  {
+  public void testClustersSameKey() {
     createIssnMatchKey();
 
     String sourceId1 = UUID.randomUUID().toString();
@@ -2041,5 +2043,98 @@ public class MainVerticleTest {
         .header(XOkapiHeaders.TENANT, tenant1)
         .delete("/meta-storage/config/matchkeys/isbn")
         .then().statusCode(204);
+  }
+
+  @Test
+  public void oaiPmhClient1() {
+    String pmhClientId = "1";
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/pmh-clients/" + pmhClientId)
+        .then().statusCode(404)
+        .contentType("text/plain")
+        .body(Matchers.is(pmhClientId));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/pmh-clients")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("resultInfo.totalRecords", is(0));
+
+    JsonObject oaiPmhClient = new JsonObject()
+        .put("url", "http://localhost:" + OKAPI_PORT + " /meta-storage/oai")
+        .put("id", pmhClientId);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .put("/meta-storage/pmh-clients/" + pmhClientId)
+        .then().statusCode(404)
+        .contentType("text/plain")
+        .body(Matchers.is(pmhClientId));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .post("/meta-storage/pmh-clients")
+        .then().statusCode(201)
+        .contentType("application/json")
+        .body(Matchers.is(oaiPmhClient.encode()));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .post("/meta-storage/pmh-clients")
+        .then().statusCode(400);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/pmh-clients/" + pmhClientId)
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body(Matchers.is(oaiPmhClient.encode()));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/pmh-clients")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("items[0].id", is(pmhClientId))
+        .body("items[0].url", is(oaiPmhClient.getString("url")))
+        .body("resultInfo.totalRecords", is(1));
+
+    oaiPmhClient.put("url", "http://foo.bar");
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .put("/meta-storage/pmh-clients/" + pmhClientId)
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/pmh-clients")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("items[0].id", is(pmhClientId))
+        .body("items[0].url", is(oaiPmhClient.getString("url")))
+        .body("resultInfo.totalRecords", is(1));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .delete("/meta-storage/pmh-clients/" + pmhClientId)
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .delete("/meta-storage/pmh-clients/" + pmhClientId)
+        .then().statusCode(404)
+        .contentType("text/plain")
+        .body(Matchers.is(pmhClientId));
   }
 }
