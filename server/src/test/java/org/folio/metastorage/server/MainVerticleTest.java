@@ -2178,19 +2178,48 @@ public class MainVerticleTest {
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("status", is("idle"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .post("/meta-storage/pmh-clients/" + pmhClientId + "/stop")
+        .then().statusCode(400)
+        .contentType("text/plain")
+        .body(is("not running"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
         .post("/meta-storage/pmh-clients/" + pmhClientId + "/start")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .post("/meta-storage/pmh-clients/" + pmhClientId + "/start")
+        .then().statusCode(400)
+        .contentType("text/plain")
+        .body(is("already running"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("status", is("running"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .post("/meta-storage/pmh-clients/" + pmhClientId + "/stop")
         .then().statusCode(204);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
         .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
         .then().statusCode(200)
-        .contentType("application/json");
-
-    RestAssured.given()
-        .header(XOkapiHeaders.TENANT, tenant1)
-        .post("/meta-storage/pmh-clients/" + pmhClientId + "/stop")
-        .then().statusCode(204);
+        .contentType("application/json")
+        .body("status", is("idle"));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)

@@ -43,7 +43,7 @@ public final class OaiPmhClient {
   }
 
   static Future<JsonObject> getConfig(Storage storage, String id) {
-    return storage.getPool().preparedQuery("SELECT config FROM " + storage.getOaiPmhClientTable()
+    return storage.getPool().preparedQuery("SELECT * FROM " + storage.getOaiPmhClientTable()
             + " WHERE id = $1")
         .execute(Tuple.of(id))
         .map(rowSet -> {
@@ -51,8 +51,14 @@ public final class OaiPmhClient {
           if (!iterator.hasNext()) {
             return null;
           }
-          JsonObject config = iterator.next().getJsonObject("config");
-          return config.put("id", id);
+          Row row = iterator.next();
+          JsonObject job = row.getJsonObject("job");
+          if (job == null) {
+            job = new JsonObject().put("status", "idle");
+          }
+          return new JsonObject()
+              .put("config", row.getJsonObject("config"))
+              .put("job", job);
         });
   }
 
@@ -70,7 +76,8 @@ public final class OaiPmhClient {
         HttpResponse.responseError(ctx, 404, id);
         return null;
       }
-      HttpResponse.responseJson(ctx, 200).end(config.encode());
+      JsonObject conf = config.getJsonObject("config").put("id", id);
+      HttpResponse.responseJson(ctx, 200).end(conf.encode());
       return null;
     });
   }
@@ -82,7 +89,7 @@ public final class OaiPmhClient {
    */
   public static Future<Void> getCollection(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
-    return storage.getPool().query("SELECT * FROM " + storage.getOaiPmhClientTable())
+    return storage.getPool().query("SELECT id,config FROM " + storage.getOaiPmhClientTable())
         .execute()
         .map(rowSet -> {
           JsonArray ar = new JsonArray();
@@ -145,6 +152,12 @@ public final class OaiPmhClient {
         });
   }
 
+  static Future<Void> updateJob(Storage storage, String id, JsonObject job) {
+    return storage.getPool().preparedQuery("UPDATE " + storage.getOaiPmhClientTable()
+        + " SET job = $2 WHERE id = $1")
+        .execute(Tuple.of(id, job))
+        .mapEmpty();
+  }
   /**
    * Start OAI PMH client job.
    * @param ctx routing context
@@ -155,14 +168,26 @@ public final class OaiPmhClient {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
-    return getConfig(storage, id).map(config -> {
-      if (config == null) {
-        HttpResponse.responseError(ctx, 404, id);
-        return null;
-      }
-      ctx.response().setStatusCode(204).end();
-      return null;
-    });
+    return getConfig(storage, id)
+        .compose(config -> {
+          if (config == null) {
+            HttpResponse.responseError(ctx, 404, id);
+            return Future.succeededFuture();
+          }
+          JsonObject job = config.getJsonObject("job");
+          String status = job.getString("status");
+          if ("running".equals(status)) {
+            HttpResponse.responseError(ctx, 400, "already running");
+            return Future.succeededFuture();
+          }
+          job.put("status", "running");
+          return updateJob(storage, id, job)
+              .map(x -> {
+                ctx.response().setStatusCode(204).end();
+                return null;
+              });
+        })
+        .mapEmpty();
   }
 
   /**
@@ -175,13 +200,23 @@ public final class OaiPmhClient {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
-    return getConfig(storage, id).map(config -> {
+    return getConfig(storage, id).compose(config -> {
       if (config == null) {
         HttpResponse.responseError(ctx, 404, id);
-        return null;
+        return Future.succeededFuture();
       }
-      ctx.response().setStatusCode(204).end();
-      return null;
+      JsonObject job = config.getJsonObject("job");
+      String status = job.getString("status");
+      if ("idle".equals(status)) {
+        HttpResponse.responseError(ctx, 400, "not running");
+        return Future.succeededFuture();
+      }
+      job.put("status", "idle");
+      return updateJob(storage, id, job)
+          .map(x -> {
+            ctx.response().setStatusCode(204).end();
+            return null;
+          });
     });
   }
 
@@ -200,9 +235,8 @@ public final class OaiPmhClient {
         HttpResponse.responseError(ctx, 404, id);
         return null;
       }
-      JsonObject status = new JsonObject();
-      status.put("status", "idle");
-      HttpResponse.responseJson(ctx, 200).end(status.encode());
+      JsonObject job = config.getJsonObject("job");
+      HttpResponse.responseJson(ctx, 200).end(job.encode());
       return null;
     });
   }

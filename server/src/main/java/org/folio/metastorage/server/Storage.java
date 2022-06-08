@@ -152,7 +152,7 @@ public class Storage {
                 + clusterValueTable + "(cluster_id)",
             CREATE_IF_NO_EXISTS + oaiPmhClientTable
                 + "(id VARCHAR NOT NULL PRIMARY KEY,"
-                + " config JSONB)"
+                + " config JSONB, job JSONB)"
         )
     ).mapEmpty();
   }
