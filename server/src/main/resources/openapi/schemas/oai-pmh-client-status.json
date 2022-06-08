@@ -8,7 +8,8 @@
     },
     "status": {
       "type" : "string",
-      "enum" : [ "idle", "running"]
+      "enum" : [ "idle", "running"],
+      "description" : "OAI PMH job status"
     },
     "error" : {
       "type" : "string",
