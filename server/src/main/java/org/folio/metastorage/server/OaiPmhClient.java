@@ -23,6 +23,7 @@ import javax.xml.stream.XMLStreamException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.folio.metastorage.util.OaiParser;
+import org.folio.metastorage.util.SourceId;
 import org.folio.metastorage.util.XmlJsonUtil;
 import org.folio.okapi.common.GenericCompositeFuture;
 import org.folio.okapi.common.HttpResponse;
@@ -329,7 +330,7 @@ public class OaiPmhClient {
 
   Future<Void> ingestRecords(Storage storage, SqlConnection connection, OaiParser oaiParser,
       JsonObject config) {
-    String sourceId = config.getString("sourceId");
+    SourceId sourceId = new SourceId(config.getString("sourceId"));
     return storage.getAvailableMatchConfigs(connection).compose(matchkeyconfigs -> {
       List<Future<Void>> futures = new LinkedList<>();
       Iterator<String> identifiers = oaiParser.getIdentifiers().iterator();

@@ -2274,7 +2274,7 @@ public class MainVerticleTest {
 
     createIsbnMatchKey();
 
-    String sourceId1 = UUID.randomUUID().toString();
+    String sourceId1 = "SOURCE-1";
     for (int i = 0; i < 10; i++) {
       JsonArray records1 = new JsonArray()
           .add(new JsonObject()
