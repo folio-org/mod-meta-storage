@@ -1,19 +1,37 @@
 package org.folio.metastorage.server;
 
 import io.vertx.core.Future;
+import io.vertx.core.MultiMap;
+import io.vertx.core.Vertx;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
+import io.vertx.ext.web.client.HttpRequest;
+import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.validation.RequestParameters;
 import io.vertx.ext.web.validation.ValidationHandler;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowIterator;
+import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.Tuple;
+import java.io.ByteArrayInputStream;
+import java.util.Iterator;
+import java.util.LinkedList;
+import java.util.List;
+import javax.xml.stream.XMLStreamException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.folio.metastorage.util.OaiParser;
+import org.folio.metastorage.util.XmlJsonUtil;
+import org.folio.okapi.common.GenericCompositeFuture;
 import org.folio.okapi.common.HttpResponse;
 
-public final class OaiPmhClient {
+public class OaiPmhClient {
+
+  Vertx vertx;
+
+  WebClient webClient;
 
   public enum Status {
     idle, running
@@ -23,8 +41,9 @@ public final class OaiPmhClient {
 
   private static final Logger log = LogManager.getLogger(OaiPmhClient.class);
 
-  private OaiPmhClient() {
-    throw new UnsupportedOperationException("OaiPmhClient");
+  public OaiPmhClient(Vertx vertx) {
+    this.vertx = vertx;
+    this.webClient = WebClient.create(vertx);
   }
 
   /**
@@ -33,7 +52,7 @@ public final class OaiPmhClient {
    * @param ctx routing context
    * @return async result
    */
-  public static Future<Void> post(RoutingContext ctx) {
+  public Future<Void> post(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
     JsonObject config = ctx.getBodyAsJson();
 
@@ -49,8 +68,8 @@ public final class OaiPmhClient {
         });
   }
 
-  static Future<Row> getOaiPmhClient(Storage storage, String id) {
-    return storage.getPool().preparedQuery("SELECT * FROM " + storage.getOaiPmhClientTable()
+  static Future<Row> getOaiPmhClient(Storage storage, SqlConnection connection, String id) {
+    return connection.preparedQuery("SELECT * FROM " + storage.getOaiPmhClientTable()
             + " WHERE id = $1")
         .execute(Tuple.of(id))
         .map(rowSet -> {
@@ -63,16 +82,17 @@ public final class OaiPmhClient {
   }
 
   static Future<JsonObject> getConfig(Storage storage, String id) {
-    return getOaiPmhClient(storage, id).map(row -> {
-      if (row == null) {
-        return null;
-      }
-      return row.getJsonObject("config");
-    });
+    return storage.getPool().withConnection(connection ->
+        getOaiPmhClient(storage, connection, id).map(row -> {
+          if (row == null) {
+            return null;
+          }
+          return row.getJsonObject("config");
+        }));
   }
 
-  static Future<JsonObject> getJob(Storage storage, String id) {
-    return getOaiPmhClient(storage, id).map(row -> {
+  static Future<JsonObject> getJob(Storage storage, SqlConnection connection, String id) {
+    return getOaiPmhClient(storage, connection, id).map(row -> {
       if (row == null) {
         return null;
       }
@@ -80,6 +100,7 @@ public final class OaiPmhClient {
       if (job == null) {
         job = new JsonObject().put(STATUS_PROP, Status.idle.name());
       }
+      job.put("config", row.getJsonObject("config"));
       return job;
     });
   }
@@ -89,7 +110,7 @@ public final class OaiPmhClient {
    * @param ctx routing context
    * @return async result
    */
-  public static Future<Void> get(RoutingContext ctx) {
+  public Future<Void> get(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
@@ -109,7 +130,7 @@ public final class OaiPmhClient {
    * @param ctx routing context
    * @return async result
    */
-  public static Future<Void> getCollection(RoutingContext ctx) {
+  public Future<Void> getCollection(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
     return storage.getPool().query("SELECT id,config FROM " + storage.getOaiPmhClientTable())
         .execute()
@@ -133,7 +154,7 @@ public final class OaiPmhClient {
    * @param ctx routing context
    * @return async result
    */
-  public static Future<Void> delete(RoutingContext ctx) {
+  public Future<Void> delete(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
@@ -155,7 +176,7 @@ public final class OaiPmhClient {
    * @param ctx routing context
    * @return async result
    */
-  public static Future<Void> put(RoutingContext ctx) {
+  public Future<Void> put(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
@@ -174,42 +195,59 @@ public final class OaiPmhClient {
         });
   }
 
-  static Future<Void> updateJob(Storage storage, String id, JsonObject job) {
-    return storage.getPool().preparedQuery("UPDATE " + storage.getOaiPmhClientTable()
+  static Future<Void> updateJob(Storage storage, SqlConnection connection, String id,
+      JsonObject job) {
+    return connection.preparedQuery("UPDATE " + storage.getOaiPmhClientTable()
         + " SET job = $2 WHERE id = $1")
         .execute(Tuple.of(id, job))
         .mapEmpty();
   }
+
+  static Future<Boolean> lock(SqlConnection connection) {
+    return connection.preparedQuery("SELECT pg_try_advisory_lock($1)")
+        .execute(Tuple.of(1))
+        .map(rowSet -> rowSet.iterator().next().getBoolean(0));
+  }
+
 
   /**
    * Start OAI PMH client job.
    * @param ctx routing context
    * @return async result
    */
-  public static Future<Void> start(RoutingContext ctx) {
+  public Future<Void> start(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
-    return getJob(storage, id)
-        .compose(job -> {
+    return storage.pool.getConnection().compose(connection ->
+        getJob(storage, connection, id).compose(job -> {
           if (job == null) {
             HttpResponse.responseError(ctx, 404, id);
-            return Future.succeededFuture();
+            return connection.close();
           }
-          String status = job.getString(STATUS_PROP);
-          if (Status.running.name().equals(status)) {
-            HttpResponse.responseError(ctx, 400, "already running");
-            return Future.succeededFuture();
-          }
-          job.put(STATUS_PROP, Status.running.name());
-          return updateJob(storage, id, job)
-              .map(x -> {
-                ctx.response().setStatusCode(204).end();
-                return null;
-              });
+          return lock(connection)
+              .compose(x -> {
+                if (!x) {
+                  HttpResponse.responseError(ctx, 400, "already locked");
+                  return connection.close();
+                }
+                job.put(STATUS_PROP, Status.running.name());
+                return updateJob(storage, connection, id, job)
+                    .onFailure(e -> connection.close())
+                    .map(y -> {
+                      ctx.response().setStatusCode(204).end();
+                      oaiHarvestLoop(storage, connection, id, job);
+                      return null;
+                    });
+              })
+              .mapEmpty();
         })
-        .mapEmpty();
+    );
+  }
+
+  static void loop(String id, JsonObject config) {
+
   }
 
   /**
@@ -217,28 +255,30 @@ public final class OaiPmhClient {
    * @param ctx routing context
    * @return async result
    */
-  public static Future<Void> stop(RoutingContext ctx) {
+  public Future<Void> stop(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
-    return getJob(storage, id).compose(job -> {
-      if (job == null) {
-        HttpResponse.responseError(ctx, 404, id);
-        return Future.succeededFuture();
-      }
-      String status = job.getString(STATUS_PROP);
-      if (Status.idle.name().equals(status)) {
-        HttpResponse.responseError(ctx, 400, "not running");
-        return Future.succeededFuture();
-      }
-      job.put(STATUS_PROP, Status.idle.name());
-      return updateJob(storage, id, job)
-          .map(x -> {
-            ctx.response().setStatusCode(204).end();
-            return null;
-          });
-    });
+    return storage.pool.withConnection(connection ->
+        getJob(storage, connection, id)
+            .compose(job -> {
+              if (job == null) {
+                HttpResponse.responseError(ctx, 404, id);
+                return Future.succeededFuture();
+              }
+              String status = job.getString(STATUS_PROP);
+              if (Status.idle.name().equals(status)) {
+                HttpResponse.responseError(ctx, 400, "not running");
+                return Future.succeededFuture();
+              }
+              job.put(STATUS_PROP, Status.idle.name());
+              return updateJob(storage, connection, id, job)
+                  .map(x -> {
+                    ctx.response().setStatusCode(204).end();
+                    return null;
+                  });
+            }));
   }
 
   /**
@@ -246,19 +286,122 @@ public final class OaiPmhClient {
    * @param ctx routing context
    * @return async result
    */
-  public static Future<Void> status(RoutingContext ctx) {
+  public Future<Void> status(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
-    return getJob(storage, id).map(job -> {
-      if (job == null) {
-        HttpResponse.responseError(ctx, 404, id);
-        return null;
+    return storage.pool.withConnection(connection ->
+        getJob(storage, connection, id)
+            .map(job -> {
+              if (job == null) {
+                HttpResponse.responseError(ctx, 404, id);
+                return null;
+              }
+              HttpResponse.responseJson(ctx, 200).end(job.encode());
+              return null;
+            }));
+  }
+
+  static MultiMap getHttpHeaders(JsonObject config) {
+    MultiMap headers = MultiMap.caseInsensitiveMultiMap();
+    headers.add("Accept", "text/xml");
+    JsonObject userHeaders = config.getJsonObject("headers");
+    if (userHeaders != null) {
+      userHeaders.forEach(e -> {
+        if (e.getValue() instanceof String value) {
+          headers.add(e.getKey(), value);
+        }
+      });
+    }
+    return headers;
+  }
+
+  static boolean addQueryParameterFromConfig(HttpRequest<Buffer> req, JsonObject config,
+      String key) {
+    String value = config.getString(key);
+    if (value == null) {
+      return false;
+    }
+    req.addQueryParam(key, value);
+    return true;
+  }
+
+  Future<Void> ingestRecords(Storage storage, SqlConnection connection, OaiParser oaiParser,
+      JsonObject config) {
+    String sourceId = config.getString("sourceId");
+    return storage.getAvailableMatchConfigs(connection).compose(matchkeyconfigs -> {
+      List<Future<Void>> futures = new LinkedList<>();
+      Iterator<String> identifiers = oaiParser.getIdentifiers().iterator();
+      for (String metadata : oaiParser.getMetadata()) {
+        try {
+          JsonObject globalRecord = new JsonObject();
+          globalRecord.put("localId", identifiers.next());
+          if (metadata == null) {
+            globalRecord.put("delete", true);
+          } else {
+            JsonObject marc = XmlJsonUtil.convertMarcXmlToJson(metadata);
+            globalRecord.put("payload", new JsonObject().put("marc", marc));
+          }
+          futures.add(storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchkeyconfigs));
+        } catch (Exception e) {
+          log.error("{}", e.getMessage(), e);
+          return Future.failedFuture(e);
+        }
       }
-      HttpResponse.responseJson(ctx, 200).end(job.encode());
-      return null;
+      return GenericCompositeFuture.all(futures).mapEmpty();
     });
   }
 
+  void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
+    JsonObject config = job.getJsonObject("config");
+
+    HttpRequest<Buffer> req = webClient.getAbs(config.getString("url"))
+        .putHeaders(getHttpHeaders(config));
+
+    OaiParser oaiParser = new OaiParser();
+
+    if (!addQueryParameterFromConfig(req, config, "resumptionToken")) {
+      addQueryParameterFromConfig(req, config, "from");
+      addQueryParameterFromConfig(req, config, "until");
+      addQueryParameterFromConfig(req, config, "set");
+      req.addQueryParam("marcDataPrefix", "marc21");
+    }
+    addQueryParameterFromConfig(req, config, "limit");
+    req.addQueryParam("verb", "ListRecords")
+        .send()
+        .compose(res -> {
+          if (res.statusCode() != 200) {
+            job.put("status", "idle");
+            job.put("errors", "OAI server returned HTTP status "
+                + res.statusCode() + "\n" + res.bodyAsString());
+            return updateJob(storage, connection, id, job)
+                .compose(x -> Future.failedFuture("stopping due to HTTP status error"));
+          }
+          oaiParser.clear();
+          try {
+            oaiParser.applyResponse(new ByteArrayInputStream(res.bodyAsString().getBytes()));
+          } catch (XMLStreamException e) {
+            return Future.failedFuture(e.getMessage());
+          }
+          return ingestRecords(storage, connection, oaiParser, config)
+              .compose(x -> {
+                String resumptionToken = oaiParser.getResumptionToken();
+                if (resumptionToken == null) {
+                  config.remove("resumptionToken");
+                  job.put("status", "idle");
+                  return updateJob(storage, connection, id, job)
+                      .compose(e -> Future.failedFuture("stopping due to no resumptionToken"));
+                }
+                config.put("resumptionToken", resumptionToken);
+                log.info("continuing with resumptionToken");
+                return updateJob(storage, connection, id, job);
+              });
+        })
+        .onSuccess(x -> oaiHarvestLoop(storage, connection, id, job))
+        .onFailure(e -> {
+          log.error(e.getMessage(), e);
+          connection.close();
+        });
+  }
 }

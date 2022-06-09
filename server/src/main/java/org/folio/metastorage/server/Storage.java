@@ -423,7 +423,12 @@ public class Storage {
                     r, matchKeyConfigs)));
   }
 
-  Future<JsonArray> getAvailableMatchConfigs(SqlConnection conn) {
+  /**
+   * Get available match key configurations.
+   * @param conn connection to use for selecting them
+   * @return async result with array of configurations
+   */
+  public Future<JsonArray> getAvailableMatchConfigs(SqlConnection conn) {
     return conn.query("SELECT * FROM " + matchKeyConfigTable)
         .execute()
         .map(res -> {

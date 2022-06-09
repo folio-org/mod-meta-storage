@@ -55,6 +55,7 @@ import org.junit.runner.RunWith;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.xml.sax.SAXException;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -70,6 +71,7 @@ public class MainVerticleTest {
   static final int MODULE_PORT = 9231;
   static final String MODULE_URL = "http://localhost:" + MODULE_PORT;
   static String tenant1 = "tenant1";
+  static String tenant2 = "tenant2";
 
   static Validator oaiSchemaValidator;
 
@@ -146,12 +148,29 @@ public class MainVerticleTest {
                 .put("id", "mod-shared-index")
                 .put("action", "enable")))
             .mapEmpty());
+
+    f = f.compose(t ->
+        webClient.postAbs(OKAPI_URL + "/_/proxy/tenants")
+            .expect(ResponsePredicate.SC_CREATED)
+            .sendJsonObject(new JsonObject().put("id", tenant2))
+            .mapEmpty());
+
+    // enable module for tenant
+    f = f.compose(e ->
+        webClient.postAbs(OKAPI_URL + "/_/proxy/tenants/" + tenant2 + "/install")
+            .expect(ResponsePredicate.SC_OK)
+            .sendJson(new JsonArray().add(new JsonObject()
+                .put("id", "mod-shared-index")
+                .put("action", "enable")))
+            .mapEmpty());
+
     f.onComplete(context.asyncAssertSuccess());
   }
 
   @AfterClass
   public static void afterClass(TestContext context) {
     tenantOp(context, tenant1, new JsonObject().put("module_from", "mod-shared-index-1.0.0"), null);
+    tenantOp(context, tenant2, new JsonObject().put("module_from", "mod-shared-index-1.0.0"), null);
     vertx.close().onComplete(context.asyncAssertSuccess());
   }
 
@@ -1847,7 +1866,7 @@ public class MainVerticleTest {
     String s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
         .param("verb", "ListRecords")
-        .param("list-limit", "2")
+        .param("limit", "2")
         .get("/meta-storage/oai")
         .then().statusCode(200)
         .contentType("text/xml")
@@ -1863,7 +1882,7 @@ public class MainVerticleTest {
       s = RestAssured.given()
           .header(XOkapiHeaders.TENANT, tenant1)
           .param("verb", "ListRecords")
-          .param("list-limit", "2")
+          .param("limit", "2")
           .param("resumptionToken", token)
           .get("/meta-storage/oai")
           .then().statusCode(200)
@@ -2065,6 +2084,7 @@ public class MainVerticleTest {
 
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", "http://localhost:" + OKAPI_PORT + " /meta-storage/oai")
+        .put("sourceId", "source-1")
         .put("id", pmhClientId);
 
     RestAssured.given()
@@ -2139,7 +2159,7 @@ public class MainVerticleTest {
   }
 
   @Test
-  public void oaiPmhClientJobs() {
+  public void oaiPmhClientJobs() throws InterruptedException {
     String pmhClientId = "2";
 
     RestAssured.given()
@@ -2164,7 +2184,10 @@ public class MainVerticleTest {
         .body(Matchers.is(pmhClientId));
 
     JsonObject oaiPmhClient = new JsonObject()
-        .put("url", "http://localhost:" + OKAPI_PORT + " /meta-storage/oai")
+        .put("url", "http://localhost:" + MODULE_PORT + "/meta-storage/oai")
+        .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, tenant1))
+        .put("sourceId", "source-1")
+        .put("set", "set1")
         .put("id", pmhClientId);
 
     RestAssured.given()
@@ -2200,19 +2223,21 @@ public class MainVerticleTest {
         .post("/meta-storage/pmh-clients/" + pmhClientId + "/start")
         .then().statusCode(400)
         .contentType("text/plain")
-        .body(is("already running"));
+        .body(containsString("already "));
 
-    RestAssured.given()
-        .header(XOkapiHeaders.TENANT, tenant1)
-        .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
-        .then().statusCode(200)
-        .contentType("application/json")
-        .body("status", is("running"));
-
-    RestAssured.given()
-        .header(XOkapiHeaders.TENANT, tenant1)
-        .post("/meta-storage/pmh-clients/" + pmhClientId + "/stop")
-        .then().statusCode(204);
+    for (int i = 0; i < 10; i++) {
+      String response = RestAssured.given()
+          .header(XOkapiHeaders.TENANT, tenant1)
+          .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
+          .then().statusCode(200)
+          .contentType("application/json")
+          .extract().body().asString();
+      JsonObject res = new JsonObject(response);
+      if ("idle".equals(res.getString("status"))) {
+        break;
+      }
+      TimeUnit.MILLISECONDS.sleep((i+2) * 200);
+    }
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -2223,7 +2248,103 @@ public class MainVerticleTest {
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
+        .post("/meta-storage/pmh-clients/" + pmhClientId + "/stop")
+        .then().statusCode(400)
+        .contentType("text/plain")
+        .body(is("not running"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
         .delete("/meta-storage/pmh-clients/" + pmhClientId)
+        .then().statusCode(204);
+  }
+
+  @Test
+  public void oaiPmhClientFetch() throws InterruptedException {
+    String pmhClientId = "3";
+
+    createIsbnMatchKey();
+
+    String sourceId1 = UUID.randomUUID().toString();
+    for (int i = 0; i < 10; i++) {
+      JsonArray records1 = new JsonArray()
+          .add(new JsonObject()
+              .put("localId", "S" + i)
+              .put("payload", new JsonObject()
+                  .put("marc", new JsonObject().put("leader", "00914naa  0101   450 "))
+                  .put("inventory", new JsonObject().put("isbn", new JsonArray().add(Integer.toString(i))))
+              )
+          );
+      ingestRecords(records1, sourceId1);
+    }
+
+    /* harvest records from tenant1 and store them in tenant2 */
+    JsonObject oaiPmhClient = new JsonObject()
+        .put("url", "http://localhost:" + MODULE_PORT + "/meta-storage/oai")
+        .put("set", "isbn")
+        .put("limit", 4)
+        .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, tenant1))
+        .put("sourceId", "source-1")
+        .put("id", pmhClientId);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant2)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .post("/meta-storage/pmh-clients")
+        .then().statusCode(201)
+        .contentType("application/json")
+        .body(Matchers.is(oaiPmhClient.encode()));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant2)
+        .post("/meta-storage/pmh-clients/" + pmhClientId + "/start")
+        .then().statusCode(204);
+
+    for (int i = 0; i < 10; i++) {
+      String response = RestAssured.given()
+          .header(XOkapiHeaders.TENANT, tenant2)
+          .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
+          .then().statusCode(200)
+          .contentType("application/json")
+          .extract().body().asString();
+      JsonObject res = new JsonObject(response);
+      if ("idle".equals(res.getString("status"))) {
+        break;
+      }
+      TimeUnit.MILLISECONDS.sleep((i+2) * 200);
+    }
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant2)
+        .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("status", is("idle"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant2)
+        .get("/meta-storage/records")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("resultInfo.totalRecords", is(10));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant2)
+        .header("Content-Type", "application/json")
+        .param("query", "cql.allRecords=true")
+        .delete("/meta-storage/records")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .param("query", "cql.allRecords=true")
+        .delete("/meta-storage/records")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .delete("/meta-storage/config/matchkeys/isbn")
         .then().statusCode(204);
   }
 }

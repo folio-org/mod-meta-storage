@@ -1,5 +1,5 @@
 {
-  "description": "OAI PMH client job",
+  "description": "OAI PMH client configuration",
   "type": "object",
   "properties": {
     "id": {
@@ -9,6 +9,10 @@
     "headers": {
       "type" : "object",
       "description" : "HTTP headers to be used against OAI server"
+    },
+    "set" : {
+      "type" : "string",
+      "description" : "OAI PMH set as returned in verb=ListSets"
     },
     "url" : {
       "type" : "string",
@@ -25,11 +29,19 @@
     "resumptionToken" : {
       "type" : "string",
       "description" : "OAI PMH resumption token"
+    },
+    "limit" : {
+      "type" : "integer",
+      "description" : "Number of records to return in one chunk (non-standard parameter)"
+    },
+    "sourceId" : {
+      "type" : "string",
+      "description" : "Source identifier"
     }
   },
   "additionalProperties": false,
   "required": [
-    "id", "url"
+    "id", "url", "sourceId"
   ]
 }
 

@@ -10,10 +10,15 @@
     "error" : {
       "type" : "string",
       "description" : "Error message for last error"
+    },
+    "config" : {
+      "description" : "configuration",
+      "type" : "object",
+      "$ref" : "oai-pmh-client.json"
     }
   },
   "additionalProperties": false,
   "required": [
-    "status"
+    "status", "config"
   ]
 }

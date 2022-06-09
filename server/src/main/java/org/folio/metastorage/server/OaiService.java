@@ -147,7 +147,7 @@ public final class OaiService {
     String from = Util.getParameterString(params.queryParameter("from"));
     String until = token != null
         ? token.getUntil() : Util.getParameterString(params.queryParameter("until"));
-    Integer limit = params.queryParameter("list-limit").getInteger();
+    Integer limit = params.queryParameter("limit").getInteger();
     Storage storage = new Storage(ctx);
     return storage.selectMatchKeyConfig(set).compose(conf -> {
       if (conf == null) {
@@ -229,7 +229,7 @@ public final class OaiService {
       }
       identifiersField.add(new JsonObject()
           .put("l", row.getString("local_id"))
-          .put("s", row.getUUID("source_id").toString())
+          .put("s", row.getString("source_id"))
       );
     }
     if (combinedMarc == null) {
