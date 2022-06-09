@@ -56,6 +56,7 @@ public class OaiParser {
    */
   public void applyResponse(InputStream stream) throws XMLStreamException {
     XMLInputFactory factory = XMLInputFactory.newInstance();
+    factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
     XMLStreamReader xmlStreamReader = factory.createXMLStreamReader(stream);
     String path = "";
     int offset = 0;
