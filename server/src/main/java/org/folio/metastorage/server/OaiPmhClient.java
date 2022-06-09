@@ -373,7 +373,7 @@ public class OaiPmhClient {
         .send()
         .compose(res -> {
           if (res.statusCode() != 200) {
-            job.put("status", "idle");
+            job.put(STATUS_PROP, Status.idle.name());
             job.put("errors", "OAI server returned HTTP status "
                 + res.statusCode() + "\n" + res.bodyAsString());
             return updateJob(storage, connection, id, job)
@@ -390,7 +390,7 @@ public class OaiPmhClient {
                 String resumptionToken = oaiParser.getResumptionToken();
                 if (resumptionToken == null) {
                   config.remove("resumptionToken");
-                  job.put("status", "idle");
+                  job.put(STATUS_PROP, Status.idle.name());
                   return updateJob(storage, connection, id, job)
                       .compose(e -> Future.failedFuture("stopping due to no resumptionToken"));
                 }
