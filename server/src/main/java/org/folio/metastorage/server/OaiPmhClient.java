@@ -247,10 +247,6 @@ public class OaiPmhClient {
     );
   }
 
-  static void loop(String id, JsonObject config) {
-
-  }
-
   /**
    * Stop OAI PMH client job.
    * @param ctx routing context
