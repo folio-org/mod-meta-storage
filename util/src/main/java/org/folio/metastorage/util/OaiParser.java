@@ -10,11 +10,18 @@ import javax.xml.stream.XMLStreamReader;
 
 public class OaiParser {
 
+  private XMLInputFactory factory;
+
   private String resumptionToken;
 
   private List<String> identifiers = new LinkedList<>();
 
   private List<String> records = new LinkedList<>();
+
+  public OaiParser() {
+    factory = XMLInputFactory.newInstance();
+    factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+  }
 
   /**
    * Get resumption token.
@@ -55,10 +62,7 @@ public class OaiParser {
    * @throws XMLStreamException stream exception
    */
   public void applyResponse(InputStream stream) throws XMLStreamException {
-    XMLInputFactory factory = XMLInputFactory.newInstance();
-    factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
     XMLStreamReader xmlStreamReader = factory.createXMLStreamReader(stream);
-    String path = "";
     int offset = 0;
     int level = 0;
     String lastRecord = null;
@@ -67,7 +71,6 @@ public class OaiParser {
       if (event == XMLStreamConstants.START_ELEMENT) {
         level++;
         String elem = xmlStreamReader.getLocalName();
-        path = path + "/" + elem;
         if (level == 3 && ("record".equals(elem) || "header".equals(elem))) {
           if (offset > 0) {
             records.add(lastRecord);
@@ -91,8 +94,6 @@ public class OaiParser {
           }
         }
       } else if (event == XMLStreamConstants.END_ELEMENT) {
-        int off = path.lastIndexOf('/');
-        path = path.substring(0, off);
         level--;
       }
     }
