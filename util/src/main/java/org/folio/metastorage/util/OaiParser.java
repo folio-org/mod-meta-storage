@@ -10,15 +10,17 @@ import javax.xml.stream.XMLStreamReader;
 
 public class OaiParser {
 
-  private XMLInputFactory factory;
+  private final XMLInputFactory factory;
 
   private String resumptionToken;
 
   private String datestamp;
 
-  private List<String> identifiers = new LinkedList<>();
+  private final List<String> identifiers = new LinkedList<>();
 
-  private List<String> records = new LinkedList<>();
+  private final List<String> records = new LinkedList<>();
+
+  private int level;
 
   public OaiParser() {
     factory = XMLInputFactory.newInstance();
@@ -67,6 +69,16 @@ public class OaiParser {
     datestamp = null;
   }
 
+  int next(XMLStreamReader xmlStreamReader) throws XMLStreamException {
+    int event = xmlStreamReader.next();
+    if (event == XMLStreamConstants.START_ELEMENT) {
+      level++;
+    } else if (event == XMLStreamConstants.END_ELEMENT) {
+      level--;
+    }
+    return event;
+  }
+
   /**
    * Parse OAI-PMH response from InputStream.
    * @param stream stream
@@ -75,12 +87,11 @@ public class OaiParser {
   public void applyResponse(InputStream stream) throws XMLStreamException {
     XMLStreamReader xmlStreamReader = factory.createXMLStreamReader(stream);
     int offset = 0;
-    int level = 0;
+    level = 0;
     String lastRecord = null;
     while (xmlStreamReader.hasNext()) {
-      int event = xmlStreamReader.next();
+      int event = next(xmlStreamReader);
       if (event == XMLStreamConstants.START_ELEMENT && xmlStreamReader.hasNext()) {
-        level++;
         String elem = xmlStreamReader.getLocalName();
         if (level == 3 && ("record".equals(elem) || "header".equals(elem))) {
           if (offset > 0) {
@@ -90,7 +101,7 @@ public class OaiParser {
           lastRecord = null;
         }
         if (level == 3 && "resumptionToken".equals(elem)) {
-          event = xmlStreamReader.next();
+          event = next(xmlStreamReader);
           if (event == XMLStreamConstants.CHARACTERS) {
             resumptionToken = xmlStreamReader.getText();
           }
@@ -99,19 +110,17 @@ public class OaiParser {
           lastRecord = XmlJsonUtil.getSubDocument(xmlStreamReader.next(), xmlStreamReader);
         }
         if (level == 5 && "datestamp".equals(elem)) {
-          event = xmlStreamReader.next();
+          event = next(xmlStreamReader);
           if (event == XMLStreamConstants.CHARACTERS) {
             datestamp = xmlStreamReader.getText();
           }
         }
         if (level == 5 && "identifier".equals(elem)) {
-          event = xmlStreamReader.next();
+          event = next(xmlStreamReader);
           if (event == XMLStreamConstants.CHARACTERS) {
             identifiers.add(xmlStreamReader.getText());
           }
         }
-      } else if (event == XMLStreamConstants.END_ELEMENT) {
-        level--;
       }
     }
     if (offset > 0) {

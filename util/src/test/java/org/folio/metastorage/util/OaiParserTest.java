@@ -51,4 +51,14 @@ public class OaiParserTest {
     assertThat(oaiParser.getDateStamp(), nullValue());
   }
 
+  @Test
+  public void listRecords3() throws FileNotFoundException, XMLStreamException {
+    OaiParser oaiParser = new OaiParser();
+    InputStream stream = new FileInputStream("src/test/resources/oai-response-3.xml");
+    oaiParser.applyResponse(stream);
+    assertThat(oaiParser.getResumptionToken(), is("MzM5OzE7Ozt2MS4w"));
+    assertThat(oaiParser.getDateStamp(), is("2022-05-03"));
+    assertThat(oaiParser.getIdentifiers(), contains("998212783503681"));
+  }
+
 }
