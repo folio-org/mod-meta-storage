@@ -14,6 +14,8 @@ public class OaiParser {
 
   private String resumptionToken;
 
+  private String datestamp;
+
   private List<String> identifiers = new LinkedList<>();
 
   private List<String> records = new LinkedList<>();
@@ -40,6 +42,14 @@ public class OaiParser {
   }
 
   /**
+   * Get datestamp.
+   * @return datestamp string (null if none provided)
+   */
+  public String getDateStamp() {
+    return datestamp;
+  }
+
+  /**
    * Get record metadata content.
    * @return list of metadata with item being null for deleted metadata
    */
@@ -54,6 +64,7 @@ public class OaiParser {
     records.clear();
     identifiers.clear();
     resumptionToken = null;
+    datestamp = null;
   }
 
   /**
@@ -68,7 +79,7 @@ public class OaiParser {
     String lastRecord = null;
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
-      if (event == XMLStreamConstants.START_ELEMENT) {
+      if (event == XMLStreamConstants.START_ELEMENT && xmlStreamReader.hasNext()) {
         level++;
         String elem = xmlStreamReader.getLocalName();
         if (level == 3 && ("record".equals(elem) || "header".equals(elem))) {
@@ -84,10 +95,16 @@ public class OaiParser {
             resumptionToken = xmlStreamReader.getText();
           }
         }
-        if (level == 4 && "metadata".equals(elem) && xmlStreamReader.hasNext()) {
+        if (level == 4 && "metadata".equals(elem)) {
           lastRecord = XmlJsonUtil.getSubDocument(xmlStreamReader.next(), xmlStreamReader);
         }
-        if (level == 5 && "identifier".equals(elem) && xmlStreamReader.hasNext()) {
+        if (level == 5 && "datestamp".equals(elem)) {
+          event = xmlStreamReader.next();
+          if (event == XMLStreamConstants.CHARACTERS) {
+            datestamp = xmlStreamReader.getText();
+          }
+        }
+        if (level == 5 && "identifier".equals(elem)) {
           event = xmlStreamReader.next();
           if (event == XMLStreamConstants.CHARACTERS) {
             identifiers.add(xmlStreamReader.getText());

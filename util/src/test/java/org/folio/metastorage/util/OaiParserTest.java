@@ -23,6 +23,7 @@ public class OaiParserTest {
     assertThat(oaiParser.getIdentifiers(), empty());
     assertThat(oaiParser.getMetadata(), empty());
     assertThat(oaiParser.getResumptionToken(), nullValue());
+    assertThat(oaiParser.getDateStamp(), nullValue());
     oaiParser.applyResponse(stream);
     assertThat(oaiParser.getIdentifiers(), hasSize(4));
     assertThat(oaiParser.getIdentifiers(), contains("998212783503681", "9977919382003681", "9977924842403681", "9977648149503681"));
@@ -32,6 +33,7 @@ public class OaiParserTest {
     assertThat(oaiParser.getMetadata().get(2), containsString("02052cam"));
     assertThat(oaiParser.getMetadata().get(3), containsString("02225nam"));
     assertThat(oaiParser.getResumptionToken(), is("MzM5OzE7Ozt2MS4w"));
+    assertThat(oaiParser.getDateStamp(), is("2022-05-03"));
     oaiParser.clear();
     assertThat(oaiParser.getIdentifiers(), empty());
     assertThat(oaiParser.getMetadata(), empty());
@@ -46,6 +48,7 @@ public class OaiParserTest {
     assertThat(oaiParser.getIdentifiers(), empty());
     assertThat(oaiParser.getMetadata(), empty());
     assertThat(oaiParser.getResumptionToken(), nullValue());
+    assertThat(oaiParser.getDateStamp(), nullValue());
   }
 
 }
