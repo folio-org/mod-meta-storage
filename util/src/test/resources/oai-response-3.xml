@@ -6,15 +6,12 @@
           <header status="deleted" other="value">
             <identifier>998212783503681</identifier>
 	    <identifier><x/></identifier>
-	    <x><identifier>foo</identifier></x>
 	    <datestamp><x/></datestamp>
             <datestamp>2022-05-03</datestamp>
-	    <x><datestamp>foo</datestamp></x>
           </header>
 	  <header status="ignored"/>
         </record>
 	<resumptionToken><x/></resumptionToken>
 	<resumptionToken>MzM5OzE7Ozt2MS4w</resumptionToken>
-	<x><resumptionToken>foo</resumptionToken></x>
 </ListRecords>
 </OAI-PMH>

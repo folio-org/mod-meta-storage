@@ -84,22 +84,22 @@ public class OaiParser {
             }
           }
         }
-        if (level == 3 && "resumptionToken".equals(elem)) {
+        if ("resumptionToken".equals(elem)) {
           event = next(xmlStreamReader);
           if (event == XMLStreamConstants.CHARACTERS) {
             resumptionToken = xmlStreamReader.getText();
           }
         }
-        if (level == 4 && "metadata".equals(elem)) {
+        if ("metadata".equals(elem)) {
           lastRecord.metadata = XmlJsonUtil.getSubDocument(xmlStreamReader.next(), xmlStreamReader);
         }
-        if (level == 5 && "datestamp".equals(elem)) {
+        if ("datestamp".equals(elem)) {
           event = next(xmlStreamReader);
           if (event == XMLStreamConstants.CHARACTERS) {
             lastRecord.datestamp = xmlStreamReader.getText();
           }
         }
-        if (level == 5 && "identifier".equals(elem)) {
+        if ("identifier".equals(elem)) {
           event = next(xmlStreamReader);
           if (event == XMLStreamConstants.CHARACTERS) {
             lastRecord.identifier = (xmlStreamReader.getText());

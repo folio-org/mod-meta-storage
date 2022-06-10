@@ -66,4 +66,29 @@ public class OaiParserTest {
     assertThat(records.get(0).getIdentifier(), is("998212783503681"));
   }
 
+  @Test
+  public void listRecords4() throws FileNotFoundException, XMLStreamException {
+    OaiParser oaiParser = new OaiParser();
+    InputStream stream = new FileInputStream("src/test/resources/oai-response-4.xml");
+    assertThat(oaiParser.getRecords(), empty());
+    assertThat(oaiParser.getResumptionToken(), nullValue());
+    oaiParser.applyResponse(stream);
+    List<OaiRecord> records = oaiParser.getRecords();
+    assertThat(records, hasSize(4));
+    assertThat(records.get(0).isDeleted, is(true));
+    assertThat(records.get(1).isDeleted, is(false));
+    assertThat(records.get(2).isDeleted, is(false));
+    assertThat(records.get(3).isDeleted, is(false));
+    assertThat(records.get(0).identifier, is("998212783503681"));
+    assertThat(records.get(1).identifier, is("9977919382003681"));
+    assertThat(records.get(2).identifier, is("9977924842403681"));
+    assertThat(records.get(3).identifier, is("9977648149503681"));
+    assertThat(records.get(0).metadata, nullValue());
+    assertThat(records.get(1).metadata, nullValue());
+    assertThat(records.get(2).metadata, nullValue());
+    assertThat(records.get(3).metadata, nullValue());
+    assertThat(oaiParser.getResumptionToken(), is("MzM5OzE7Ozt2MS4w"));
+    assertThat(records.get(3).datestamp, is("2022-05-03"));
+  }
+
 }
