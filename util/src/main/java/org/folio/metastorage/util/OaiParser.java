@@ -14,11 +14,7 @@ public class OaiParser {
 
   private String resumptionToken;
 
-  private String datestamp;
-
-  private final List<String> identifiers = new LinkedList<>();
-
-  private final List<String> records = new LinkedList<>();
+  private final List<OaiRecord> records = new LinkedList<>();
 
   private int level;
 
@@ -36,26 +32,10 @@ public class OaiParser {
   }
 
   /**
-   * Get record identifiers.
-   * @return list of identifiers
+   * Get records.
+   * @return list of records
    */
-  public List<String> getIdentifiers() {
-    return identifiers;
-  }
-
-  /**
-   * Get datestamp.
-   * @return datestamp string (null if none provided)
-   */
-  public String getDateStamp() {
-    return datestamp;
-  }
-
-  /**
-   * Get record metadata content.
-   * @return list of metadata with item being null for deleted metadata
-   */
-  public List<String> getMetadata() {
+  public List<OaiRecord> getRecords() {
     return records;
   }
 
@@ -64,9 +44,7 @@ public class OaiParser {
    */
   public void clear() {
     records.clear();
-    identifiers.clear();
     resumptionToken = null;
-    datestamp = null;
   }
 
   int next(XMLStreamReader xmlStreamReader) throws XMLStreamException {
@@ -86,19 +64,25 @@ public class OaiParser {
    */
   public void applyResponse(InputStream stream) throws XMLStreamException {
     XMLStreamReader xmlStreamReader = factory.createXMLStreamReader(stream);
-    int offset = 0;
     level = 0;
-    String lastRecord = null;
+    OaiRecord lastRecord = null;
     while (xmlStreamReader.hasNext()) {
       int event = next(xmlStreamReader);
       if (event == XMLStreamConstants.START_ELEMENT && xmlStreamReader.hasNext()) {
         String elem = xmlStreamReader.getLocalName();
         if (level == 3 && ("record".equals(elem) || "header".equals(elem))) {
-          if (offset > 0) {
+          if (lastRecord != null) {
             records.add(lastRecord);
           }
-          offset++;
-          lastRecord = null;
+          lastRecord = new OaiRecord();
+        }
+        if ("header".equals(elem) && level <= 4) {
+          for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
+            if ("status".equals(xmlStreamReader.getAttributeLocalName(i))
+                && "deleted".equals(xmlStreamReader.getAttributeValue(i))) {
+              lastRecord.isDeleted = true;
+            }
+          }
         }
         if (level == 3 && "resumptionToken".equals(elem)) {
           event = next(xmlStreamReader);
@@ -107,23 +91,23 @@ public class OaiParser {
           }
         }
         if (level == 4 && "metadata".equals(elem)) {
-          lastRecord = XmlJsonUtil.getSubDocument(xmlStreamReader.next(), xmlStreamReader);
+          lastRecord.metadata = XmlJsonUtil.getSubDocument(xmlStreamReader.next(), xmlStreamReader);
         }
         if (level == 5 && "datestamp".equals(elem)) {
           event = next(xmlStreamReader);
           if (event == XMLStreamConstants.CHARACTERS) {
-            datestamp = xmlStreamReader.getText();
+            lastRecord.datestamp = xmlStreamReader.getText();
           }
         }
         if (level == 5 && "identifier".equals(elem)) {
           event = next(xmlStreamReader);
           if (event == XMLStreamConstants.CHARACTERS) {
-            identifiers.add(xmlStreamReader.getText());
+            lastRecord.identifier = (xmlStreamReader.getText());
           }
         }
       }
     }
-    if (offset > 0) {
+    if (lastRecord != null) {
       records.add(lastRecord);
     }
   }

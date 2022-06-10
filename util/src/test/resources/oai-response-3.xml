@@ -3,7 +3,7 @@
   <responseDate>2022-06-09T09:54:45Z</responseDate>
   <request verb="ListRecords" set="339" metadataPrefix="marc21">https://pod.stanford.edu/oai</request>
   <ListRecords>        <record>
-          <header status="deleted">
+          <header status="deleted" other="value">
             <identifier>998212783503681</identifier>
 	    <identifier><x/></identifier>
 	    <x><identifier>foo</identifier></x>
@@ -11,6 +11,7 @@
             <datestamp>2022-05-03</datestamp>
 	    <x><datestamp>foo</datestamp></x>
           </header>
+	  <header status="ignored"/>
         </record>
 	<resumptionToken><x/></resumptionToken>
 	<resumptionToken>MzM5OzE7Ozt2MS4w</resumptionToken>

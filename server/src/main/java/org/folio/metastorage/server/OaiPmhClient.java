@@ -23,6 +23,7 @@ import javax.xml.stream.XMLStreamException;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.folio.metastorage.util.OaiParser;
+import org.folio.metastorage.util.OaiRecord;
 import org.folio.metastorage.util.SourceId;
 import org.folio.metastorage.util.XmlJsonUtil;
 import org.folio.okapi.common.GenericCompositeFuture;
@@ -329,15 +330,14 @@ public class OaiPmhClient {
     SourceId sourceId = new SourceId(config.getString("sourceId"));
     return storage.getAvailableMatchConfigs(connection).compose(matchkeyconfigs -> {
       List<Future<Void>> futures = new LinkedList<>();
-      Iterator<String> identifiers = oaiParser.getIdentifiers().iterator();
-      for (String metadata : oaiParser.getMetadata()) {
+      for (OaiRecord oaiRecord : oaiParser.getRecords()) {
         try {
           JsonObject globalRecord = new JsonObject();
-          globalRecord.put("localId", identifiers.next());
-          if (metadata == null) {
+          globalRecord.put("localId", oaiRecord.getIdentifier());
+          if (oaiRecord.getIsDeleted()) {
             globalRecord.put("delete", true);
           } else {
-            JsonObject marc = XmlJsonUtil.convertMarcXmlToJson(metadata);
+            JsonObject marc = XmlJsonUtil.convertMarcXmlToJson(oaiRecord.getMetadata());
             globalRecord.put("payload", new JsonObject().put("marc", marc));
           }
           futures.add(storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchkeyconfigs));
