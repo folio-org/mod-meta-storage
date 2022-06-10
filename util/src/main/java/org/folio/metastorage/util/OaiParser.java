@@ -73,14 +73,16 @@ public class OaiParser {
     }
   }
 
-  void parseDatestamp(XMLStreamReader xmlStreamReader, OaiRecord oaiRecord) throws XMLStreamException {
+  void parseDatestamp(XMLStreamReader xmlStreamReader, OaiRecord oaiRecord)
+      throws XMLStreamException {
     int event = next(xmlStreamReader);
     if (event == XMLStreamConstants.CHARACTERS) {
       oaiRecord.datestamp = xmlStreamReader.getText();
     }
   }
 
-  void parseIdentifier(XMLStreamReader xmlStreamReader, OaiRecord oaiRecord) throws XMLStreamException {
+  void parseIdentifier(XMLStreamReader xmlStreamReader, OaiRecord oaiRecord)
+      throws XMLStreamException {
     int event = next(xmlStreamReader);
     if (event == XMLStreamConstants.CHARACTERS) {
       oaiRecord.identifier = (xmlStreamReader.getText());
