@@ -16,7 +16,6 @@ import io.vertx.sqlclient.RowIterator;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.Tuple;
 import java.io.ByteArrayInputStream;
-import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import javax.xml.stream.XMLStreamException;
@@ -35,11 +34,15 @@ public class OaiPmhClient {
 
   WebClient webClient;
 
-  public enum Status {
-    idle, running
-  }
+  private static final String STATUS_LITERAL = "status";
 
-  private static final String STATUS_PROP = "status";
+  private static final String RESUMPTION_TOKEN_LITERAL = "resumptionToken";
+
+  private static final String IDLE_ITERAL = "idle";
+
+  private static final String RUNNING_LITERAL = "running";
+
+  private static final String CONFIG_LITERAL = "config";
 
   private static final Logger log = LogManager.getLogger(OaiPmhClient.class);
 
@@ -89,7 +92,7 @@ public class OaiPmhClient {
           if (row == null) {
             return null;
           }
-          return row.getJsonObject("config");
+          return row.getJsonObject(CONFIG_LITERAL);
         }));
   }
 
@@ -100,9 +103,9 @@ public class OaiPmhClient {
       }
       JsonObject job = row.getJsonObject("job");
       if (job == null) {
-        job = new JsonObject().put(STATUS_PROP, Status.idle.name());
+        job = new JsonObject().put(STATUS_LITERAL, IDLE_ITERAL);
       }
-      job.put("config", row.getJsonObject("config"));
+      job.put(CONFIG_LITERAL, row.getJsonObject(CONFIG_LITERAL));
       return job;
     });
   }
@@ -139,7 +142,7 @@ public class OaiPmhClient {
         .map(rowSet -> {
           JsonArray ar = new JsonArray();
           rowSet.forEach(x -> {
-            JsonObject config = x.getJsonObject("config");
+            JsonObject config = x.getJsonObject(CONFIG_LITERAL);
             config.put("id", x.getValue("id"));
             ar.add(config);
           });
@@ -230,11 +233,11 @@ public class OaiPmhClient {
           }
           return lock(connection)
               .compose(x -> {
-                if (!x) {
+                if (Boolean.FALSE.equals(x)) {
                   HttpResponse.responseError(ctx, 400, "already locked");
                   return connection.close();
                 }
-                job.put(STATUS_PROP, Status.running.name());
+                job.put(STATUS_LITERAL, RUNNING_LITERAL);
                 return updateJob(storage, connection, id, job)
                     .onFailure(e -> connection.close())
                     .map(y -> {
@@ -265,12 +268,12 @@ public class OaiPmhClient {
                 HttpResponse.responseError(ctx, 404, id);
                 return Future.succeededFuture();
               }
-              String status = job.getString(STATUS_PROP);
-              if (Status.idle.name().equals(status)) {
+              String status = job.getString(STATUS_LITERAL);
+              if (IDLE_ITERAL.equals(status)) {
                 HttpResponse.responseError(ctx, 400, "not running");
                 return Future.succeededFuture();
               }
-              job.put(STATUS_PROP, Status.idle.name());
+              job.put(STATUS_LITERAL, IDLE_ITERAL);
               return updateJob(storage, connection, id, job)
                   .map(x -> {
                     ctx.response().setStatusCode(204).end();
@@ -351,14 +354,14 @@ public class OaiPmhClient {
   }
 
   void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
-    JsonObject config = job.getJsonObject("config");
+    JsonObject config = job.getJsonObject(CONFIG_LITERAL);
 
     HttpRequest<Buffer> req = webClient.getAbs(config.getString("url"))
         .putHeaders(getHttpHeaders(config));
 
     OaiParser oaiParser = new OaiParser();
 
-    if (!addQueryParameterFromConfig(req, config, "resumptionToken")) {
+    if (!addQueryParameterFromConfig(req, config, RESUMPTION_TOKEN_LITERAL)) {
       addQueryParameterFromConfig(req, config, "from");
       addQueryParameterFromConfig(req, config, "until");
       addQueryParameterFromConfig(req, config, "set");
@@ -369,7 +372,7 @@ public class OaiPmhClient {
         .send()
         .compose(res -> {
           if (res.statusCode() != 200) {
-            job.put(STATUS_PROP, Status.idle.name());
+            job.put(STATUS_LITERAL, IDLE_ITERAL);
             job.put("errors", "OAI server returned HTTP status "
                 + res.statusCode() + "\n" + res.bodyAsString());
             return updateJob(storage, connection, id, job)
@@ -385,12 +388,12 @@ public class OaiPmhClient {
               .compose(x -> {
                 String resumptionToken = oaiParser.getResumptionToken();
                 if (resumptionToken == null) {
-                  config.remove("resumptionToken");
-                  job.put(STATUS_PROP, Status.idle.name());
+                  config.remove(RESUMPTION_TOKEN_LITERAL);
+                  job.put(STATUS_LITERAL, IDLE_ITERAL);
                   return updateJob(storage, connection, id, job)
                       .compose(e -> Future.failedFuture("stopping due to no resumptionToken"));
                 }
-                config.put("resumptionToken", resumptionToken);
+                config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
                 log.info("continuing with resumptionToken");
                 return updateJob(storage, connection, id, job);
               });
