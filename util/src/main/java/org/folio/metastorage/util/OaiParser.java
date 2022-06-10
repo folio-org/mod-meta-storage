@@ -57,6 +57,36 @@ public class OaiParser {
     return event;
   }
 
+  void header(XMLStreamReader xmlStreamReader, OaiRecord lastRecord) {
+    for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
+      if ("status".equals(xmlStreamReader.getAttributeLocalName(i))
+          && "deleted".equals(xmlStreamReader.getAttributeValue(i))) {
+        lastRecord.isDeleted = true;
+      }
+    }
+  }
+
+  void parseResumptionToken(XMLStreamReader xmlStreamReader) throws XMLStreamException {
+    int event = next(xmlStreamReader);
+    if (event == XMLStreamConstants.CHARACTERS) {
+      resumptionToken = xmlStreamReader.getText();
+    }
+  }
+
+  void parseDatestamp(XMLStreamReader xmlStreamReader, OaiRecord oaiRecord) throws XMLStreamException {
+    int event = next(xmlStreamReader);
+    if (event == XMLStreamConstants.CHARACTERS) {
+      oaiRecord.datestamp = xmlStreamReader.getText();
+    }
+  }
+
+  void parseIdentifier(XMLStreamReader xmlStreamReader, OaiRecord oaiRecord) throws XMLStreamException {
+    int event = next(xmlStreamReader);
+    if (event == XMLStreamConstants.CHARACTERS) {
+      oaiRecord.identifier = (xmlStreamReader.getText());
+    }
+  }
+
   /**
    * Parse OAI-PMH response from InputStream.
    * @param stream stream
@@ -76,34 +106,16 @@ public class OaiParser {
           }
           lastRecord = new OaiRecord();
         }
-        if ("header".equals(elem) && level <= 4) {
-          for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
-            if ("status".equals(xmlStreamReader.getAttributeLocalName(i))
-                && "deleted".equals(xmlStreamReader.getAttributeValue(i))) {
-              lastRecord.isDeleted = true;
-            }
-          }
-        }
-        if ("resumptionToken".equals(elem)) {
-          event = next(xmlStreamReader);
-          if (event == XMLStreamConstants.CHARACTERS) {
-            resumptionToken = xmlStreamReader.getText();
-          }
-        }
-        if ("metadata".equals(elem)) {
+        if ("header".equals(elem)) {
+          header(xmlStreamReader, lastRecord);
+        } else if ("resumptionToken".equals(elem)) {
+          parseResumptionToken(xmlStreamReader);
+        } else if ("metadata".equals(elem)) {
           lastRecord.metadata = XmlJsonUtil.getSubDocument(xmlStreamReader.next(), xmlStreamReader);
-        }
-        if ("datestamp".equals(elem)) {
-          event = next(xmlStreamReader);
-          if (event == XMLStreamConstants.CHARACTERS) {
-            lastRecord.datestamp = xmlStreamReader.getText();
-          }
-        }
-        if ("identifier".equals(elem)) {
-          event = next(xmlStreamReader);
-          if (event == XMLStreamConstants.CHARACTERS) {
-            lastRecord.identifier = (xmlStreamReader.getText());
-          }
+        } else if ("datestamp".equals(elem)) {
+          parseDatestamp(xmlStreamReader, lastRecord);
+        } else if ("identifier".equals(elem)) {
+          parseIdentifier(xmlStreamReader, lastRecord);
         }
       }
     }
