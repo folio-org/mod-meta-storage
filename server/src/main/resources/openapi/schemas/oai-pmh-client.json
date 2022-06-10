@@ -2,41 +2,41 @@
   "description": "OAI PMH client configuration",
   "type": "object",
   "properties": {
+    "from" : {
+      "type" : "string",
+      "description" : "OAI PMH from date"
+    },
     "id": {
       "type": "string",
       "description": "OAI PMH Client identifier"
     },
     "headers": {
       "type" : "object",
-      "description" : "HTTP headers to be used against OAI server"
+      "description" : "Additional HTTP headers to be used against OAI server with keys and string values"
     },
-    "set" : {
-      "type" : "string",
-      "description" : "OAI PMH set as returned in verb=ListSets"
-    },
-    "url" : {
-      "type" : "string",
-      "description" : "OAI PMH server prefix so that PREFIX?verb=.. works"
-    },
-    "from" : {
-      "type" : "string",
-      "description" : "OAI PMH from date"
-    },
-    "until" : {
-      "type" : "string",
-      "description" : "OAI PMH until date"
+    "params" : {
+      "type" : "object",
+      "description" : "Additional query parameters with keys and string values"
     },
     "resumptionToken" : {
       "type" : "string",
       "description" : "OAI PMH resumption token"
     },
-    "limit" : {
-      "type" : "integer",
-      "description" : "Number of records to return in one chunk (non-standard parameter)"
+    "set" : {
+      "type" : "string",
+      "description" : "OAI PMH set as returned in verb=ListSets"
     },
     "sourceId" : {
       "type" : "string",
-      "description" : "Source identifier"
+      "description" : "Source identifier used for storing records"
+    },
+    "until" : {
+      "type" : "string",
+      "description" : "OAI PMH until date"
+    },
+    "url" : {
+      "type" : "string",
+      "description" : "OAI PMH server prefix so that PREFIX?verb=.. works"
     }
   },
   "additionalProperties": false,

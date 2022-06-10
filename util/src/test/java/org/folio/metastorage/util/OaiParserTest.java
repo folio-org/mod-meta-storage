@@ -21,7 +21,7 @@ public class OaiParserTest {
     InputStream stream = new FileInputStream("src/test/resources/oai-response-1.xml");
     assertThat(oaiParser.getRecords(), empty());
     assertThat(oaiParser.getResumptionToken(), nullValue());
-    oaiParser.applyResponse(stream);
+    oaiParser.parseResponse(stream);
     List<OaiRecord> records = oaiParser.getRecords();
     assertThat(records, hasSize(4));
     assertThat(records.get(0).isDeleted, is(true));
@@ -47,7 +47,7 @@ public class OaiParserTest {
   public void listRecords2() throws FileNotFoundException, XMLStreamException {
     OaiParser oaiParser = new OaiParser();
     InputStream stream = new FileInputStream("src/test/resources/oai-response-2.xml");
-    oaiParser.applyResponse(stream);
+    oaiParser.parseResponse(stream);
     assertThat(oaiParser.getRecords(), empty());
     assertThat(oaiParser.getResumptionToken(), nullValue());
   }
@@ -56,7 +56,7 @@ public class OaiParserTest {
   public void listRecords3() throws FileNotFoundException, XMLStreamException {
     OaiParser oaiParser = new OaiParser();
     InputStream stream = new FileInputStream("src/test/resources/oai-response-3.xml");
-    oaiParser.applyResponse(stream);
+    oaiParser.parseResponse(stream);
     assertThat(oaiParser.getResumptionToken(), is("MzM5OzE7Ozt2MS4w"));
     List<OaiRecord> records = oaiParser.getRecords();
     assertThat(records, hasSize(1));
@@ -72,7 +72,7 @@ public class OaiParserTest {
     InputStream stream = new FileInputStream("src/test/resources/oai-response-4.xml");
     assertThat(oaiParser.getRecords(), empty());
     assertThat(oaiParser.getResumptionToken(), nullValue());
-    oaiParser.applyResponse(stream);
+    oaiParser.parseResponse(stream);
     List<OaiRecord> records = oaiParser.getRecords();
     assertThat(records, hasSize(4));
     assertThat(records.get(0).isDeleted, is(true));

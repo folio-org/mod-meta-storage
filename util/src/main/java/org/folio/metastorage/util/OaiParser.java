@@ -94,7 +94,7 @@ public class OaiParser {
    * @param stream stream
    * @throws XMLStreamException stream exception
    */
-  public void applyResponse(InputStream stream) throws XMLStreamException {
+  public void parseResponse(InputStream stream) throws XMLStreamException {
     XMLStreamReader xmlStreamReader = factory.createXMLStreamReader(stream);
     level = 0;
     OaiRecord lastRecord = null;

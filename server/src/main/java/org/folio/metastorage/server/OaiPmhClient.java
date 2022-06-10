@@ -38,11 +38,15 @@ public class OaiPmhClient {
 
   private static final String RESUMPTION_TOKEN_LITERAL = "resumptionToken";
 
-  private static final String IDLE_ITERAL = "idle";
+  private static final String IDLE_LITERAL = "idle";
 
   private static final String RUNNING_LITERAL = "running";
 
   private static final String CONFIG_LITERAL = "config";
+
+  private static final String TOTAL_RECORDS_LITERAL = "totalRecords";
+
+  private static final String TOTAL_REQUESTS_LITERAL = "totalRequests";
 
   private static final Logger log = LogManager.getLogger(OaiPmhClient.class);
 
@@ -103,9 +107,14 @@ public class OaiPmhClient {
       }
       JsonObject job = row.getJsonObject("job");
       if (job == null) {
-        job = new JsonObject().put(STATUS_LITERAL, IDLE_ITERAL);
+        job = new JsonObject()
+            .put(STATUS_LITERAL, IDLE_LITERAL)
+            .put(TOTAL_RECORDS_LITERAL, 0L)
+            .put(TOTAL_REQUESTS_LITERAL, 0L);
       }
-      job.put(CONFIG_LITERAL, row.getJsonObject(CONFIG_LITERAL));
+      JsonObject config = row.getJsonObject(CONFIG_LITERAL);
+      config.put("id", id);
+      job.put(CONFIG_LITERAL, config);
       return job;
     });
   }
@@ -148,7 +157,7 @@ public class OaiPmhClient {
           });
           JsonObject response = new JsonObject();
           response.put("items", ar);
-          response.put("resultInfo", new JsonObject().put("totalRecords", ar.size()));
+          response.put("resultInfo", new JsonObject().put(TOTAL_RECORDS_LITERAL, ar.size()));
           HttpResponse.responseJson(ctx, 200).end(response.encode());
           return null;
         });
@@ -269,11 +278,11 @@ public class OaiPmhClient {
                 return Future.succeededFuture();
               }
               String status = job.getString(STATUS_LITERAL);
-              if (IDLE_ITERAL.equals(status)) {
+              if (IDLE_LITERAL.equals(status)) {
                 HttpResponse.responseError(ctx, 400, "not running");
                 return Future.succeededFuture();
               }
-              job.put(STATUS_LITERAL, IDLE_ITERAL);
+              job.put(STATUS_LITERAL, IDLE_LITERAL);
               return updateJob(storage, connection, id, job)
                   .map(x -> {
                     ctx.response().setStatusCode(204).end();
@@ -312,6 +321,8 @@ public class OaiPmhClient {
       userHeaders.forEach(e -> {
         if (e.getValue() instanceof String value) {
           headers.add(e.getKey(), value);
+        } else {
+          throw new IllegalArgumentException("headers " + e.getKey() + " value must be string");
         }
       });
     }
@@ -326,6 +337,18 @@ public class OaiPmhClient {
     }
     req.addQueryParam(key, value);
     return true;
+  }
+
+  static void addQueryParameterFromParams(HttpRequest<Buffer> req, JsonObject params) {
+    if (params != null) {
+      params.forEach(e -> {
+        if (e.getValue() instanceof String value) {
+          req.addQueryParam(e.getKey(), value);
+        } else {
+          throw new IllegalArgumentException("params " + e.getKey() + " value must be string");
+        }
+      });
+    }
   }
 
   Future<Void> ingestRecords(Storage storage, SqlConnection connection, OaiParser oaiParser,
@@ -367,12 +390,13 @@ public class OaiPmhClient {
       addQueryParameterFromConfig(req, config, "set");
       req.addQueryParam("marcDataPrefix", "marc21");
     }
-    addQueryParameterFromConfig(req, config, "limit");
+    addQueryParameterFromParams(req, config.getJsonObject("params"));
     req.addQueryParam("verb", "ListRecords")
         .send()
         .compose(res -> {
+          job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
           if (res.statusCode() != 200) {
-            job.put(STATUS_LITERAL, IDLE_ITERAL);
+            job.put(STATUS_LITERAL, IDLE_LITERAL);
             job.put("errors", "OAI server returned HTTP status "
                 + res.statusCode() + "\n" + res.bodyAsString());
             return updateJob(storage, connection, id, job)
@@ -380,16 +404,18 @@ public class OaiPmhClient {
           }
           oaiParser.clear();
           try {
-            oaiParser.applyResponse(new ByteArrayInputStream(res.bodyAsString().getBytes()));
+            oaiParser.parseResponse(new ByteArrayInputStream(res.bodyAsString().getBytes()));
           } catch (XMLStreamException e) {
             return Future.failedFuture(e.getMessage());
           }
+          job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL)
+              + oaiParser.getRecords().size());
           return ingestRecords(storage, connection, oaiParser, config)
               .compose(x -> {
                 String resumptionToken = oaiParser.getResumptionToken();
                 if (resumptionToken == null) {
                   config.remove(RESUMPTION_TOKEN_LITERAL);
-                  job.put(STATUS_LITERAL, IDLE_ITERAL);
+                  job.put(STATUS_LITERAL, IDLE_LITERAL);
                   return updateJob(storage, connection, id, job)
                       .compose(e -> Future.failedFuture("stopping due to no resumptionToken"));
                 }
