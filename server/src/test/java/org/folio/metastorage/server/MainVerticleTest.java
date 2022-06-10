@@ -22,6 +22,7 @@ import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -43,6 +44,7 @@ import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.awaitility.Awaitility;
 import org.folio.okapi.common.XOkapiHeaders;
 import org.folio.tlib.postgres.testing.TenantPgPoolContainer;
 import org.hamcrest.Matchers;
@@ -55,7 +57,6 @@ import org.junit.runner.RunWith;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.xml.sax.SAXException;
 
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
@@ -2167,6 +2168,17 @@ public class MainVerticleTest {
         .body(Matchers.is(pmhClientId));
   }
 
+  boolean harvestCompleted(String tenant, String pmhClientId) {
+    String response = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant)
+        .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .extract().body().asString();
+    JsonObject res = new JsonObject(response);
+    return "idle".equals(res.getString("status"));
+  }
+
   @Test
   public void oaiPmhClientJobs() throws InterruptedException {
     String pmhClientId = "2";
@@ -2234,19 +2246,7 @@ public class MainVerticleTest {
         .contentType("text/plain")
         .body(containsString("already "));
 
-    for (int i = 0; i < 10; i++) {
-      String response = RestAssured.given()
-          .header(XOkapiHeaders.TENANT, tenant1)
-          .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
-          .then().statusCode(200)
-          .contentType("application/json")
-          .extract().body().asString();
-      JsonObject res = new JsonObject(response);
-      if ("idle".equals(res.getString("status"))) {
-        break;
-      }
-      TimeUnit.MILLISECONDS.sleep((i+2) * 200);
-    }
+    Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> harvestCompleted(tenant1, pmhClientId));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -2310,19 +2310,8 @@ public class MainVerticleTest {
         .post("/meta-storage/pmh-clients/" + pmhClientId + "/start")
         .then().statusCode(204);
 
-    for (int i = 0; i < 10; i++) {
-      String response = RestAssured.given()
-          .header(XOkapiHeaders.TENANT, tenant2)
-          .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
-          .then().statusCode(200)
-          .contentType("application/json")
-          .extract().body().asString();
-      JsonObject res = new JsonObject(response);
-      if ("idle".equals(res.getString("status"))) {
-        break;
-      }
-      TimeUnit.MILLISECONDS.sleep((i+2) * 200);
-    }
+    Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> harvestCompleted(tenant2, pmhClientId));
+
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant2)
         .get("/meta-storage/pmh-clients/" + pmhClientId + "/status")
