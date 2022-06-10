@@ -68,4 +68,17 @@ public final class Util {
     return d.atZone(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS)
         .format(DateTimeFormatter.ISO_DATE_TIME);
   }
+
+  /**
+   * Get "next" OAI date from datestamp +1 day/second.
+   * @param datestamp datestamp in either format.
+   * @return datestamp of next
+   */
+  public static String getNextOaiDate(String datestamp) {
+    String res = parseUntil(datestamp).toString();
+    if (datestamp.length() == 10) {
+      return res.substring(0, 10);
+    }
+    return res;
+  }
 }

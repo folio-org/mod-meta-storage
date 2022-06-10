@@ -392,6 +392,19 @@ public class OaiPmhClient {
     });
   }
 
+  static void datestampToFrom(List<OaiRecord> records, JsonObject config) {
+    String newestDatestamp = null;
+    for (OaiRecord record : records) {
+      String datestamp = record.getDatestamp();
+      if (newestDatestamp == null || datestamp.compareTo(datestamp) > 0) {
+        newestDatestamp = datestamp;
+      }
+    }
+    if (newestDatestamp != null) {
+      config.put("from", Util.getNextOaiDate(newestDatestamp));
+    }
+  }
+
   void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
     JsonObject config = job.getJsonObject(CONFIG_LITERAL);
 
@@ -421,18 +434,17 @@ public class OaiPmhClient {
                 .compose(x -> Future.failedFuture("stopping due to HTTP status error"));
           }
           return parseResponse(oaiParser, res.bodyAsString()).compose(d -> {
-            log.info("oai client ingest {} records", oaiParser.getRecords().size());
-            job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL)
-                + oaiParser.getRecords().size());
+            List<OaiRecord> records = oaiParser.getRecords();
+            log.info("oai client ingest {} records", records.size());
+            job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL) + records.size());
+            datestampToFrom(records, config);
             return ingestRecords(storage, connection, oaiParser, config)
                 .compose(x -> {
                   String resumptionToken = oaiParser.getResumptionToken();
                   String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
                   if (resumptionToken == null || resumptionToken.equals(oldResumptionToken)) {
-                    log.info("stop processing. Response: {}", res.bodyAsString());
                     config.remove(RESUMPTION_TOKEN_LITERAL);
                     job.put(STATUS_LITERAL, IDLE_LITERAL);
-                    // TODO: should save datestamp + 1 unit here as new "from"
                     return updateJob(storage, connection, id, job)
                         .compose(e -> Future.failedFuture(
                             "stopping due to no resumptionToken or same resumptionToken"));
