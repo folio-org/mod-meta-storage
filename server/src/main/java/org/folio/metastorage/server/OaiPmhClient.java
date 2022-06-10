@@ -112,7 +112,10 @@ public class OaiPmhClient {
             .put(TOTAL_RECORDS_LITERAL, 0L)
             .put(TOTAL_REQUESTS_LITERAL, 0L);
       }
-      JsonObject config = row.getJsonObject(CONFIG_LITERAL);
+      JsonObject config = job.getJsonObject(CONFIG_LITERAL);
+      if (config == null) {
+        config = row.getJsonObject(CONFIG_LITERAL);
+      }
       config.put("id", id);
       job.put(CONFIG_LITERAL, config);
       return job;
@@ -376,9 +379,23 @@ public class OaiPmhClient {
     });
   }
 
+  Future<Void> parseResponse(OaiParser oaiParser, String body) {
+    return vertx.executeBlocking(p -> {
+      try {
+        oaiParser.clear();
+        oaiParser.parseResponse(new ByteArrayInputStream(body.getBytes()));
+      } catch (XMLStreamException e) {
+        p.fail(e.getMessage());
+        return;
+      }
+      p.complete();
+    });
+  }
+
   void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
     JsonObject config = job.getJsonObject(CONFIG_LITERAL);
 
+    log.info("oai client send request");
     HttpRequest<Buffer> req = webClient.getAbs(config.getString("url"))
         .putHeaders(getHttpHeaders(config));
 
@@ -388,12 +405,13 @@ public class OaiPmhClient {
       addQueryParameterFromConfig(req, config, "from");
       addQueryParameterFromConfig(req, config, "until");
       addQueryParameterFromConfig(req, config, "set");
-      req.addQueryParam("marcDataPrefix", "marc21");
+      addQueryParameterFromConfig(req, config, "metadataPrefix");
     }
     addQueryParameterFromParams(req, config.getJsonObject("params"));
     req.addQueryParam("verb", "ListRecords")
         .send()
         .compose(res -> {
+          log.info("oai client handle response");
           job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
           if (res.statusCode() != 200) {
             job.put(STATUS_LITERAL, IDLE_LITERAL);
@@ -402,27 +420,32 @@ public class OaiPmhClient {
             return updateJob(storage, connection, id, job)
                 .compose(x -> Future.failedFuture("stopping due to HTTP status error"));
           }
-          oaiParser.clear();
-          try {
-            oaiParser.parseResponse(new ByteArrayInputStream(res.bodyAsString().getBytes()));
-          } catch (XMLStreamException e) {
-            return Future.failedFuture(e.getMessage());
-          }
-          job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL)
-              + oaiParser.getRecords().size());
-          return ingestRecords(storage, connection, oaiParser, config)
-              .compose(x -> {
-                String resumptionToken = oaiParser.getResumptionToken();
-                if (resumptionToken == null) {
-                  config.remove(RESUMPTION_TOKEN_LITERAL);
-                  job.put(STATUS_LITERAL, IDLE_LITERAL);
-                  return updateJob(storage, connection, id, job)
-                      .compose(e -> Future.failedFuture("stopping due to no resumptionToken"));
-                }
-                config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
-                log.info("continuing with resumptionToken");
-                return updateJob(storage, connection, id, job);
-              });
+          return parseResponse(oaiParser, res.bodyAsString()).compose(d -> {
+            log.info("oai client ingest " + oaiParser.getRecords().size() + " records");
+            job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL)
+                + oaiParser.getRecords().size());
+            return ingestRecords(storage, connection, oaiParser, config)
+                .compose(x -> {
+                  String resumptionToken = oaiParser.getResumptionToken();
+
+                  if (resumptionToken == null || oaiParser.getRecords().isEmpty()) {
+                    log.info("stop processing. Response: {}", res.bodyAsString());
+                    config.remove(RESUMPTION_TOKEN_LITERAL);
+                    job.put(STATUS_LITERAL, IDLE_LITERAL);
+                    // TODO: should save datestamp + 1 unit here as new "from"
+                    return updateJob(storage, connection, id, job)
+                        .compose(e -> Future.failedFuture(
+                            "stopping due to no resumptionToken or no records"));
+                  }
+                  String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
+                  if (resumptionToken.equals(oldResumptionToken)) {
+                    log.info("resumptionToken is the same!");
+                  }
+                  config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
+                  log.info("continuing with resumptionToken and records {}", job.encodePrettily());
+                  return updateJob(storage, connection, id, job);
+                });
+          });
         })
         .onSuccess(x -> oaiHarvestLoop(storage, connection, id, job))
         .onFailure(e -> {
