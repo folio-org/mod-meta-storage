@@ -392,11 +392,11 @@ public class OaiPmhClient {
     });
   }
 
-  static void datestampToFrom(List<OaiRecord> records, JsonObject config) {
+  static void datestampToFrom(List<OaiRecord> oaiRecords, JsonObject config) {
     String newestDatestamp = null;
-    for (OaiRecord record : records) {
-      String datestamp = record.getDatestamp();
-      if (newestDatestamp == null || datestamp.compareTo(datestamp) > 0) {
+    for (OaiRecord oaiRecord : oaiRecords) {
+      String datestamp = oaiRecord.getDatestamp();
+      if (newestDatestamp == null || datestamp.compareTo(newestDatestamp) > 0) {
         newestDatestamp = datestamp;
       }
     }
@@ -434,10 +434,10 @@ public class OaiPmhClient {
                 .compose(x -> Future.failedFuture("stopping due to HTTP status error"));
           }
           return parseResponse(oaiParser, res.bodyAsString()).compose(d -> {
-            List<OaiRecord> records = oaiParser.getRecords();
-            log.info("oai client ingest {} records", records.size());
-            job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL) + records.size());
-            datestampToFrom(records, config);
+            List<OaiRecord> oaiRecords = oaiParser.getRecords();
+            log.info("oai client ingest {} records", oaiRecords.size());
+            job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL) + oaiRecords.size());
+            datestampToFrom(oaiRecords, config);
             return ingestRecords(storage, connection, oaiParser, config)
                 .compose(x -> {
                   String resumptionToken = oaiParser.getResumptionToken();
