@@ -354,28 +354,34 @@ public class OaiPmhClient {
     }
   }
 
+  Future<Void> ingestRecord(Storage storage, OaiRecord oaiRecord,
+      SourceId sourceId, JsonArray matchkeyconfigs) {
+    return vertx.executeBlocking(p -> {
+      try {
+        JsonObject globalRecord = new JsonObject();
+        globalRecord.put("localId", oaiRecord.getIdentifier());
+        if (oaiRecord.getIsDeleted()) {
+          globalRecord.put("delete", true);
+        } else {
+          JsonObject marc = XmlJsonUtil.convertMarcXmlToJson(oaiRecord.getMetadata());
+          globalRecord.put("payload", new JsonObject().put("marc", marc));
+        }
+        storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchkeyconfigs).onComplete(p);
+      } catch (Exception e) {
+        log.error("{}", e.getMessage(), e);
+        p.fail(e);
+      }
+    });
+  }
+
   Future<Void> ingestRecords(Storage storage, SqlConnection connection, OaiParser oaiParser,
       JsonObject config) {
     SourceId sourceId = new SourceId(config.getString("sourceId"));
     return storage.getAvailableMatchConfigs(connection).compose(matchkeyconfigs -> {
-      List<Future<Void>> futures = new LinkedList<>();
       for (OaiRecord oaiRecord : oaiParser.getRecords()) {
-        try {
-          JsonObject globalRecord = new JsonObject();
-          globalRecord.put("localId", oaiRecord.getIdentifier());
-          if (oaiRecord.getIsDeleted()) {
-            globalRecord.put("delete", true);
-          } else {
-            JsonObject marc = XmlJsonUtil.convertMarcXmlToJson(oaiRecord.getMetadata());
-            globalRecord.put("payload", new JsonObject().put("marc", marc));
-          }
-          futures.add(storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchkeyconfigs));
-        } catch (Exception e) {
-          log.error("{}", e.getMessage(), e);
-          return Future.failedFuture(e);
-        }
+        ingestRecord(storage, oaiRecord, sourceId, matchkeyconfigs);
       }
-      return GenericCompositeFuture.all(futures).mapEmpty();
+      return Future.succeededFuture();
     });
   }
 
