@@ -361,7 +361,7 @@ public class OaiPmhClient {
   }
 
   Future<Void> ingestRecord(
-      Storage storage, OaiRecord oaiRecord,
+      Storage storage, OaiRecord<JsonObject> oaiRecord,
       SourceId sourceId, JsonArray matchkeyconfigs) {
     try {
       JsonObject globalRecord = new JsonObject();
@@ -369,8 +369,7 @@ public class OaiPmhClient {
       if (oaiRecord.getIsDeleted()) {
         globalRecord.put("delete", true);
       } else {
-        JsonObject marc = new JsonObject(oaiRecord.getMetadata());
-        globalRecord.put("payload", new JsonObject().put("marc", marc));
+        globalRecord.put("payload", new JsonObject().put("marc", oaiRecord.getMetadata()));
       }
       return storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchkeyconfigs);
     } catch (Exception e) {
@@ -384,7 +383,7 @@ public class OaiPmhClient {
   }
 
   Future<Integer> parseResponse(
-      Storage storage, OaiParser oaiParser, String body,
+      Storage storage, OaiParser<JsonObject> oaiParser, String body,
       JsonArray matchKeyConfigs, JsonObject config) {
     AtomicInteger numberOfRecords = new AtomicInteger();
     return vertx.executeBlocking(p -> {
@@ -392,7 +391,7 @@ public class OaiPmhClient {
         SourceId sourceId = new SourceId(config.getString("sourceId"));
         oaiParser.clear();
         Datestamp newestDatestamp = new Datestamp();
-        oaiParser.setParseMetadata(x -> XmlJsonUtil.convertMarcXmlToJson(x).encode());
+        oaiParser.setParseMetadata(x -> XmlJsonUtil.convertMarcXmlToJson(x));
         oaiParser.parseResponse(new ByteArrayInputStream(body.getBytes()),
             oaiRecord -> {
               ingestRecord(storage, oaiRecord, sourceId, matchKeyConfigs);
@@ -420,7 +419,7 @@ public class OaiPmhClient {
     HttpRequest<Buffer> req = webClient.getAbs(config.getString("url"))
         .putHeaders(getHttpHeaders(config));
 
-    OaiParser oaiParser = new OaiParser();
+    OaiParser<JsonObject> oaiParser = new OaiParser();
 
     if (!addQueryParameterFromConfig(req, config, RESUMPTION_TOKEN_LITERAL)) {
       addQueryParameterFromConfig(req, config, "from");

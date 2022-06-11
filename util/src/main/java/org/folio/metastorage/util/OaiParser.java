@@ -10,19 +10,13 @@ import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
-public class OaiParser {
+public class OaiParser<T> {
 
   private final XMLInputFactory factory;
 
   private String resumptionToken;
 
-  Function<XMLStreamReader, String> parseMetadata = x -> {
-    try {
-      return XmlJsonUtil.getSubDocument(x.next(), x);
-    } catch (XMLStreamException e) {
-      throw new RuntimeException(e);
-    }
-  };
+  private Function<XMLStreamReader, T> parseMetadata;
 
   private int level;
 
@@ -35,7 +29,7 @@ public class OaiParser {
    * Set parse metadata handler.
    * @param parseMetadata handler converts XML stream of metadata content to string.
    */
-  public void setParseMetadata(Function<XMLStreamReader,String> parseMetadata) {
+  public void setParseMetadata(Function<XMLStreamReader,T> parseMetadata) {
     this.parseMetadata = parseMetadata;
   }
 
@@ -64,7 +58,7 @@ public class OaiParser {
     return event;
   }
 
-  void header(XMLStreamReader xmlStreamReader, OaiRecord lastRecord) {
+  void header(XMLStreamReader xmlStreamReader, OaiRecord<T> lastRecord) {
     for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
       if ("status".equals(xmlStreamReader.getAttributeLocalName(i))
           && "deleted".equals(xmlStreamReader.getAttributeValue(i))) {
@@ -80,7 +74,7 @@ public class OaiParser {
     }
   }
 
-  void parseDatestamp(XMLStreamReader xmlStreamReader, OaiRecord oaiRecord)
+  void parseDatestamp(XMLStreamReader xmlStreamReader, OaiRecord<T> oaiRecord)
       throws XMLStreamException {
     int event = next(xmlStreamReader);
     if (event == XMLStreamConstants.CHARACTERS) {
@@ -88,7 +82,7 @@ public class OaiParser {
     }
   }
 
-  void parseIdentifier(XMLStreamReader xmlStreamReader, OaiRecord oaiRecord)
+  void parseIdentifier(XMLStreamReader xmlStreamReader, OaiRecord<T> oaiRecord)
       throws XMLStreamException {
     int event = next(xmlStreamReader);
     if (event == XMLStreamConstants.CHARACTERS) {
@@ -103,7 +97,7 @@ public class OaiParser {
    * @throws XMLStreamException stream exception
    */
 
-  public void parseResponse(InputStream stream, Consumer<OaiRecord> recordHandler)
+  public void parseResponse(InputStream stream, Consumer<OaiRecord<T>> recordHandler)
       throws XMLStreamException {
     XMLStreamReader xmlStreamReader = factory.createXMLStreamReader(stream);
     parseResponse(xmlStreamReader, recordHandler);
@@ -115,7 +109,7 @@ public class OaiParser {
    * @param recordHandler called for each record
    * @throws XMLStreamException stream exception
    */
-  public void parseResponse(XMLStreamReader xmlStreamReader, Consumer<OaiRecord> recordHandler)
+  public void parseResponse(XMLStreamReader xmlStreamReader, Consumer<OaiRecord<T>> recordHandler)
       throws XMLStreamException {
     level = 0;
     OaiRecord lastRecord = null;
