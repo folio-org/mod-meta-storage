@@ -112,7 +112,7 @@ public class OaiParser<T> {
   public void parseResponse(XMLStreamReader xmlStreamReader, Consumer<OaiRecord<T>> recordHandler)
       throws XMLStreamException {
     level = 0;
-    OaiRecord lastRecord = null;
+    OaiRecord<T> lastRecord = null;
     while (xmlStreamReader.hasNext()) {
       int event = next(xmlStreamReader);
       if (event == XMLStreamConstants.START_ELEMENT && xmlStreamReader.hasNext()) {
@@ -121,7 +121,7 @@ public class OaiParser<T> {
           if (lastRecord != null) {
             recordHandler.accept(lastRecord);
           }
-          lastRecord = new OaiRecord();
+          lastRecord = new OaiRecord<>();
         }
         if ("header".equals(elem)) {
           header(xmlStreamReader, lastRecord);
