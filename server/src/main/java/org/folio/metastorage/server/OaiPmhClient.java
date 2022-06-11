@@ -16,16 +16,13 @@ import io.vertx.sqlclient.RowIterator;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.Tuple;
 import java.io.ByteArrayInputStream;
-import java.util.LinkedList;
-import java.util.List;
-import javax.xml.stream.XMLStreamException;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.folio.metastorage.util.OaiParser;
 import org.folio.metastorage.util.OaiRecord;
 import org.folio.metastorage.util.SourceId;
 import org.folio.metastorage.util.XmlJsonUtil;
-import org.folio.okapi.common.GenericCompositeFuture;
 import org.folio.okapi.common.HttpResponse;
 
 public class OaiPmhClient {
@@ -124,6 +121,7 @@ public class OaiPmhClient {
 
   /**
    * Get OAI-PMH client.
+   *
    * @param ctx routing context
    * @return async result
    */
@@ -144,6 +142,7 @@ public class OaiPmhClient {
 
   /**
    * Get all OAI-PMH clients.
+   *
    * @param ctx routing context
    * @return async result
    */
@@ -168,6 +167,7 @@ public class OaiPmhClient {
 
   /**
    * Delete OAI-PMH client.
+   *
    * @param ctx routing context
    * @return async result
    */
@@ -190,6 +190,7 @@ public class OaiPmhClient {
 
   /**
    * Update OAI-PMH client.
+   *
    * @param ctx routing context
    * @return async result
    */
@@ -212,10 +213,11 @@ public class OaiPmhClient {
         });
   }
 
-  static Future<Void> updateJob(Storage storage, SqlConnection connection, String id,
+  static Future<Void> updateJob(
+      Storage storage, SqlConnection connection, String id,
       JsonObject job) {
     return connection.preparedQuery("UPDATE " + storage.getOaiPmhClientTable()
-        + " SET job = $2 WHERE id = $1")
+            + " SET job = $2 WHERE id = $1")
         .execute(Tuple.of(id, job))
         .mapEmpty();
   }
@@ -229,6 +231,7 @@ public class OaiPmhClient {
 
   /**
    * Start OAI PMH client job.
+   *
    * @param ctx routing context
    * @return async result
    */
@@ -265,6 +268,7 @@ public class OaiPmhClient {
 
   /**
    * Stop OAI PMH client job.
+   *
    * @param ctx routing context
    * @return async result
    */
@@ -296,6 +300,7 @@ public class OaiPmhClient {
 
   /**
    * Get OAI PMH client status.
+   *
    * @param ctx routing context
    * @return async result
    */
@@ -332,7 +337,8 @@ public class OaiPmhClient {
     return headers;
   }
 
-  static boolean addQueryParameterFromConfig(HttpRequest<Buffer> req, JsonObject config,
+  static boolean addQueryParameterFromConfig(
+      HttpRequest<Buffer> req, JsonObject config,
       String key) {
     String value = config.getString(key);
     if (value == null) {
@@ -354,61 +360,56 @@ public class OaiPmhClient {
     }
   }
 
-  Future<Void> ingestRecord(Storage storage, OaiRecord oaiRecord,
+  Future<Void> ingestRecord(
+      Storage storage, OaiRecord oaiRecord,
       SourceId sourceId, JsonArray matchkeyconfigs) {
-    return vertx.executeBlocking(p -> {
-      try {
-        JsonObject globalRecord = new JsonObject();
-        globalRecord.put("localId", oaiRecord.getIdentifier());
-        if (oaiRecord.getIsDeleted()) {
-          globalRecord.put("delete", true);
-        } else {
-          JsonObject marc = XmlJsonUtil.convertMarcXmlToJson(oaiRecord.getMetadata());
-          globalRecord.put("payload", new JsonObject().put("marc", marc));
-        }
-        storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchkeyconfigs).onComplete(p);
-      } catch (Exception e) {
-        log.error("{}", e.getMessage(), e);
-        p.fail(e);
+    try {
+      JsonObject globalRecord = new JsonObject();
+      globalRecord.put("localId", oaiRecord.getIdentifier());
+      if (oaiRecord.getIsDeleted()) {
+        globalRecord.put("delete", true);
+      } else {
+        JsonObject marc = XmlJsonUtil.convertMarcXmlToJson(oaiRecord.getMetadata());
+        globalRecord.put("payload", new JsonObject().put("marc", marc));
       }
-    });
+      return storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchkeyconfigs);
+    } catch (Exception e) {
+      log.error("{}", e.getMessage(), e);
+      return Future.failedFuture(e);
+    }
   }
 
-  Future<Void> ingestRecords(Storage storage, SqlConnection connection, OaiParser oaiParser,
-      JsonObject config) {
-    SourceId sourceId = new SourceId(config.getString("sourceId"));
-    return storage.getAvailableMatchConfigs(connection).compose(matchkeyconfigs -> {
-      for (OaiRecord oaiRecord : oaiParser.getRecords()) {
-        ingestRecord(storage, oaiRecord, sourceId, matchkeyconfigs);
-      }
-      return Future.succeededFuture();
-    });
+  class Datestamp {
+    String value;
   }
 
-  Future<Void> parseResponse(OaiParser oaiParser, String body) {
+  Future<Integer> parseResponse(
+      Storage storage, OaiParser oaiParser, String body,
+      JsonArray matchKeyConfigs, JsonObject config) {
+    AtomicInteger numberOfRecords = new AtomicInteger();
     return vertx.executeBlocking(p -> {
       try {
+        SourceId sourceId = new SourceId(config.getString("sourceId"));
         oaiParser.clear();
-        oaiParser.parseResponse(new ByteArrayInputStream(body.getBytes()));
-      } catch (XMLStreamException e) {
+        Datestamp newestDatestamp = new Datestamp();
+        oaiParser.parseResponse(new ByteArrayInputStream(body.getBytes()),
+            oaiRecord -> {
+              ingestRecord(storage, oaiRecord, sourceId, matchKeyConfigs);
+              numberOfRecords.incrementAndGet();
+              String datestamp = oaiRecord.getDatestamp();
+              if (newestDatestamp.value == null || datestamp.compareTo(newestDatestamp.value) > 0) {
+                newestDatestamp.value = datestamp;
+              }
+            });
+        if (newestDatestamp.value != null) {
+          config.put("from", Util.getNextOaiDate(newestDatestamp.value));
+        }
+      } catch (Exception e) {
         p.fail(e.getMessage());
         return;
       }
-      p.complete();
+      p.complete(numberOfRecords.get());
     });
-  }
-
-  static void datestampToFrom(List<OaiRecord> oaiRecords, JsonObject config) {
-    String newestDatestamp = null;
-    for (OaiRecord oaiRecord : oaiRecords) {
-      String datestamp = oaiRecord.getDatestamp();
-      if (newestDatestamp == null || datestamp.compareTo(newestDatestamp) > 0) {
-        newestDatestamp = datestamp;
-      }
-    }
-    if (newestDatestamp != null) {
-      config.put("from", Util.getNextOaiDate(newestDatestamp));
-    }
   }
 
   void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
@@ -439,13 +440,12 @@ public class OaiPmhClient {
             return updateJob(storage, connection, id, job)
                 .compose(x -> Future.failedFuture("stopping due to HTTP status error"));
           }
-          return parseResponse(oaiParser, res.bodyAsString()).compose(d -> {
-            List<OaiRecord> oaiRecords = oaiParser.getRecords();
-            log.info("oai client ingest {} records", oaiRecords.size());
-            job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL) + oaiRecords.size());
-            datestampToFrom(oaiRecords, config);
-            return ingestRecords(storage, connection, oaiParser, config)
-                .compose(x -> {
+          return storage.getAvailableMatchConfigs(connection).compose(matchKeyConfigs ->
+            parseResponse(storage, oaiParser, res.bodyAsString(), matchKeyConfigs, config)
+                .compose(numberOfRecords -> {
+                  log.info("oai client ingest {} records", numberOfRecords);
+                  job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL)
+                      + numberOfRecords);
                   String resumptionToken = oaiParser.getResumptionToken();
                   String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
                   if (resumptionToken == null || resumptionToken.equals(oldResumptionToken)) {
@@ -458,8 +458,8 @@ public class OaiPmhClient {
                   config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
                   log.info("continuing with resumptionToken and records {}", job.encodePrettily());
                   return updateJob(storage, connection, id, job);
-                });
-          });
+                })
+          );
         })
         .onSuccess(x -> oaiHarvestLoop(storage, connection, id, job))
         .onFailure(e -> {
