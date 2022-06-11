@@ -22,10 +22,9 @@ public class OaiParserTest {
   public void listRecords1() throws FileNotFoundException, XMLStreamException {
     OaiParser oaiParser = new OaiParser();
     InputStream stream = new FileInputStream("src/test/resources/oai-response-1.xml");
-    assertThat(oaiParser.getRecords(), empty());
     assertThat(oaiParser.getResumptionToken(), nullValue());
-    oaiParser.parseResponse(stream);
-    List<OaiRecord> records = oaiParser.getRecords();
+    List<OaiRecord> records = new LinkedList<>();
+    oaiParser.parseResponse(stream, records::add);
     assertThat(records, hasSize(4));
     assertThat(records.get(0).isDeleted, is(true));
     assertThat(records.get(1).isDeleted, is(false));
@@ -42,7 +41,6 @@ public class OaiParserTest {
     assertThat(oaiParser.getResumptionToken(), is("MzM5OzE7Ozt2MS4w"));
     assertThat(records.get(3).datestamp, is("2022-05-03"));
     oaiParser.clear();
-    assertThat(oaiParser.getRecords(), empty());
     assertThat(oaiParser.getResumptionToken(), nullValue());
   }
 
@@ -50,8 +48,9 @@ public class OaiParserTest {
   public void listRecords2() throws FileNotFoundException, XMLStreamException {
     OaiParser oaiParser = new OaiParser();
     InputStream stream = new FileInputStream("src/test/resources/oai-response-2.xml");
-    oaiParser.parseResponse(stream);
-    assertThat(oaiParser.getRecords(), empty());
+    List<OaiRecord> records = new LinkedList<>();
+    oaiParser.parseResponse(stream, records::add);
+    assertThat(records, empty());
     assertThat(oaiParser.getResumptionToken(), nullValue());
   }
 
@@ -59,9 +58,9 @@ public class OaiParserTest {
   public void listRecords3() throws FileNotFoundException, XMLStreamException {
     OaiParser oaiParser = new OaiParser();
     InputStream stream = new FileInputStream("src/test/resources/oai-response-3.xml");
-    oaiParser.parseResponse(stream);
+    List<OaiRecord> records = new LinkedList<>();
+    oaiParser.parseResponse(stream, records::add);
     assertThat(oaiParser.getResumptionToken(), is("MzM5OzE7Ozt2MS4w"));
-    List<OaiRecord> records = oaiParser.getRecords();
     assertThat(records, hasSize(1));
     assertThat(records.get(0).getMetadata(), nullValue());
     assertThat(records.get(0).getIsDeleted(), is(true));
@@ -73,10 +72,9 @@ public class OaiParserTest {
   public void listRecords4() throws FileNotFoundException, XMLStreamException {
     OaiParser oaiParser = new OaiParser();
     InputStream stream = new FileInputStream("src/test/resources/oai-response-4.xml");
-    assertThat(oaiParser.getRecords(), empty());
     assertThat(oaiParser.getResumptionToken(), nullValue());
-    oaiParser.parseResponse(stream);
-    List<OaiRecord> records = oaiParser.getRecords();
+    List<OaiRecord> records = new LinkedList<>();
+    oaiParser.parseResponse(stream, records::add);
     assertThat(records, hasSize(4));
     assertThat(records.get(0).isDeleted, is(true));
     assertThat(records.get(1).isDeleted, is(false));

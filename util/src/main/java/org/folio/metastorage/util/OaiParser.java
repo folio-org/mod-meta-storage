@@ -24,15 +24,12 @@ public class OaiParser {
     }
   };
 
-  private final List<OaiRecord> records = new LinkedList<>();
-
   private int level;
 
   public OaiParser() {
     factory = XMLInputFactory.newInstance();
     factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
   }
-
 
   /**
    * Set parse metadata handler.
@@ -51,18 +48,9 @@ public class OaiParser {
   }
 
   /**
-   * Get records.
-   * @return list of records
-   */
-  public List<OaiRecord> getRecords() {
-    return records;
-  }
-
-  /**
    * Clear identifiers and metadata records.
    */
   public void clear() {
-    records.clear();
     resumptionToken = null;
   }
 
@@ -106,15 +94,6 @@ public class OaiParser {
     if (event == XMLStreamConstants.CHARACTERS) {
       oaiRecord.identifier = (xmlStreamReader.getText());
     }
-  }
-
-  /**
-   * Parse OAI-PMH response from InputStream and save list.
-   * @param stream stream
-   * @throws XMLStreamException stream exception
-   */
-  public void parseResponse(InputStream stream) throws XMLStreamException {
-    parseResponse(stream, records::add);
   }
 
   /**
