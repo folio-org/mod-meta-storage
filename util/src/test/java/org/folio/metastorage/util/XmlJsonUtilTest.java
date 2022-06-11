@@ -17,7 +17,6 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
-
 import org.folio.okapi.testing.UtilityClassTester;
 import org.junit.Assert;
 import org.junit.Test;
@@ -219,7 +218,22 @@ public class XmlJsonUtilTest {
   }
 
   @Test
-  public void convertMarcXmlToJsonRecord1() throws ParserConfigurationException, IOException, SAXException {
+  public void convertJsonToMarcXmlStream() throws XMLStreamException {
+    XMLInputFactory factory = XMLInputFactory.newInstance();
+    factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+    String doc = "<a>" + MARCXML2_SAMPLE + "</a>";
+
+     XMLStreamReader xmlStreamReader =
+        factory.createXMLStreamReader(new ByteArrayInputStream(doc.getBytes()));
+     Assert.assertEquals(XMLStreamReader.START_ELEMENT, xmlStreamReader.next());
+     XmlJsonUtil.convertMarcXmlToJson(xmlStreamReader);
+     Assert.assertEquals(XMLStreamReader.END_ELEMENT, xmlStreamReader.next());
+     Assert.assertEquals("a", xmlStreamReader.getLocalName());
+     Assert.assertEquals(XMLStreamReader.END_DOCUMENT, xmlStreamReader.next());
+     Assert.assertFalse(xmlStreamReader.hasNext());
+  }
+  @Test
+  public void convertMarcXmlToJsonRecord1() throws XMLStreamException {
     JsonObject got = XmlJsonUtil.convertMarcXmlToJson(MARCXML1_SAMPLE);
     Assert.assertEquals(MARCJSON1_SAMPLE, got);
     String collection = "<collection>" + MARCXML1_SAMPLE + "</collection>";
@@ -228,32 +242,17 @@ public class XmlJsonUtilTest {
   }
 
   @Test
-  public void convertMarcXmlToJsonRecord1ignore() throws ParserConfigurationException, IOException, SAXException {
-    String marcXmlExtra =
-        "<record>\n"
-            + "  <leader>1234&lt;&gt;&quot;&apos;</leader>\n"
-            + "  <record>abc</record>\n"
-            + "</record>";
+  public void convertMarcXmlToJsonRecord2() throws XMLStreamException {
+      JsonObject got = XmlJsonUtil.convertMarcXmlToJson(MARCXML2_SAMPLE);
+      Assert.assertEquals(MARCJSON2_SAMPLE, got);
 
-    JsonObject got = XmlJsonUtil.convertMarcXmlToJson(marcXmlExtra);
-    Assert.assertEquals(MARCJSON1_SAMPLE, got);
-    String collection = "<collection>" + marcXmlExtra + "</collection>";
-    got = XmlJsonUtil.convertMarcXmlToJson(collection);
-    Assert.assertEquals(MARCJSON1_SAMPLE, got);
+      String collection = "<collection>" + MARCXML2_SAMPLE + "</collection>";
+      got = XmlJsonUtil.convertMarcXmlToJson(collection);
+      Assert.assertEquals(MARCJSON2_SAMPLE, got);
   }
 
   @Test
-  public void convertMarcXmlToJsonRecord2() throws ParserConfigurationException, IOException, SAXException {
-    JsonObject got = XmlJsonUtil.convertMarcXmlToJson(MARCXML2_SAMPLE);
-    Assert.assertEquals(MARCJSON2_SAMPLE, got);
-
-    String collection = "<collection>" + MARCXML2_SAMPLE + "</collection>";
-    got = XmlJsonUtil.convertMarcXmlToJson(collection);
-    Assert.assertEquals(MARCJSON2_SAMPLE, got);
-  }
-
-  @Test
-  public void convertMarcXmlToJsonRecord3() throws ParserConfigurationException, IOException, SAXException {
+  public void convertMarcXmlToJsonRecord3() throws XMLStreamException {
     JsonObject got = XmlJsonUtil.convertMarcXmlToJson(MARCXML3_SAMPLE);
     Assert.assertEquals(MARCJSON3_SAMPLE, got);
 
@@ -272,7 +271,7 @@ public class XmlJsonUtilTest {
 
   @Test
   public void convertMarcXmlToJsonRecordMissing()  {
-    String record = "<foo/>";
+    String record = "<collection/>";
     Throwable t = Assert.assertThrows(IllegalArgumentException.class,
         () ->XmlJsonUtil.convertMarcXmlToJson(record));
     Assert.assertEquals("No record element found", t.getMessage());
@@ -280,7 +279,7 @@ public class XmlJsonUtilTest {
     String collection = "<collection><foo/></collection>";
     t = Assert.assertThrows(IllegalArgumentException.class,
         () ->XmlJsonUtil.convertMarcXmlToJson(collection));
-    Assert.assertEquals("No record element found", t.getMessage());
+    Assert.assertEquals("Bad marcxml element: foo", t.getMessage());
   }
 
   @Test

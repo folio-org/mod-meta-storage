@@ -369,7 +369,7 @@ public class OaiPmhClient {
       if (oaiRecord.getIsDeleted()) {
         globalRecord.put("delete", true);
       } else {
-        JsonObject marc = XmlJsonUtil.convertMarcXmlToJson(oaiRecord.getMetadata());
+        JsonObject marc = new JsonObject(oaiRecord.getMetadata());
         globalRecord.put("payload", new JsonObject().put("marc", marc));
       }
       return storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchkeyconfigs);
@@ -392,6 +392,7 @@ public class OaiPmhClient {
         SourceId sourceId = new SourceId(config.getString("sourceId"));
         oaiParser.clear();
         Datestamp newestDatestamp = new Datestamp();
+        oaiParser.setParseMetadata(x -> XmlJsonUtil.convertMarcXmlToJson(x).encode());
         oaiParser.parseResponse(new ByteArrayInputStream(body.getBytes()),
             oaiRecord -> {
               ingestRecord(storage, oaiRecord, sourceId, matchKeyConfigs);

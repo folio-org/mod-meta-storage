@@ -4,15 +4,11 @@ import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringReader;
 import java.io.StringWriter;
 import java.util.Iterator;
 import java.util.List;
-import javax.xml.parsers.DocumentBuilder;
-import javax.xml.parsers.DocumentBuilderFactory;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
@@ -25,12 +21,6 @@ import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.w3c.dom.Document;
-import org.w3c.dom.Element;
-import org.w3c.dom.Node;
-import org.w3c.dom.NodeList;
-import org.xml.sax.InputSource;
-import org.xml.sax.SAXException;
 
 public final class XmlJsonUtil {
   private static final Logger LOGGER = LogManager.getLogger(XmlJsonUtil.class);
@@ -43,7 +33,6 @@ public final class XmlJsonUtil {
   private static final String SUBFIELD_LABEL = "subfield";
   private static final String SUBFIELDS_LABEL = "subfields";
   private static final String CODE_LABEL = "code";
-
   private static final String FIELDS_LABEL = "fields";
 
   private XmlJsonUtil() {
@@ -105,88 +94,115 @@ public final class XmlJsonUtil {
     return s.toString();
   }
 
+  static String getCdata(XMLStreamReader xmlStreamReader)
+      throws XMLStreamException {
+    int event = next(xmlStreamReader);
+    StringBuilder t = new StringBuilder();
+    while (event == XMLStreamConstants.CHARACTERS) {
+      t.append(xmlStreamReader.getText());
+      event = next(xmlStreamReader);
+    }
+    return t.toString();
+  }
+
+  static String getAttribute(XMLStreamReader xmlStreamReader, String name) {
+    for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
+      if (name.equals(xmlStreamReader.getAttributeLocalName(i))) {
+        return xmlStreamReader.getAttributeValue(i);
+      }
+    }
+    return null;
+  }
+
   /**
-   * Convert MARCXML to MARC-in-JSON.
+   * Convert MARCXML to MARC-in-JSON from String.
    * @param marcXml MARCXML XML string
    * @return JSON object.
-   * @throws SAXException some sax exception
-   * @throws ParserConfigurationException problem with XML parser
-   * @throws IOException other IO error
+   * @throws XMLStreamException some stream exception
    */
-  public static JsonObject convertMarcXmlToJson(String marcXml)
-      throws SAXException, ParserConfigurationException, IOException {
+  public static JsonObject convertMarcXmlToJson(String marcXml) throws XMLStreamException {
+    XMLInputFactory factory = XMLInputFactory.newInstance();
+    factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+    XMLStreamReader xmlStreamReader =
+        factory.createXMLStreamReader(new ByteArrayInputStream(marcXml.getBytes()));
+    return convertMarcXmlToJson(xmlStreamReader);
+  }
 
-    JsonObject marcJson = new JsonObject();
+  /**
+   * Convert MARCXML to MARC-in-JSON from XMLStreamReader.
+   * @param xmlStreamReader were the MARC-XML is read from
+   * @return JSON object.
+   */
+  public static JsonObject convertMarcXmlToJson(XMLStreamReader xmlStreamReader) {
+    try {
+      return convertMarcXmlToJsonInt(xmlStreamReader);
+    } catch (XMLStreamException e) {
+      throw new IllegalArgumentException(e.getMessage());
+    }
+  }
+
+  static JsonObject convertMarcXmlToJsonInt(XMLStreamReader xmlStreamReader)
+      throws XMLStreamException {
+    int level = 0;
+    int recordNo = 0;
+    JsonObject marc = new JsonObject();
     JsonArray fields = new JsonArray();
-    DocumentBuilderFactory documentBuilderFactory = DocumentBuilderFactory.newInstance();
-    documentBuilderFactory.setNamespaceAware(true);
-    documentBuilderFactory.setFeature("http://apache.org/xml/features/disallow-doctype-decl", true);
-    DocumentBuilder documentBuilder = documentBuilderFactory.newDocumentBuilder();
-    Document document = documentBuilder.parse(new InputSource(new StringReader(marcXml)));
-    Element root = document.getDocumentElement();
-    Element recordElement = null;
-    if (RECORD_LABEL.equals(root.getLocalName())) {
-      recordElement = root;
-    } else if (COLLECTION_LABEL.equals(root.getLocalName())) {
-      Node node = root.getFirstChild();
-      while (node != null) {
-        if (RECORD_LABEL.equals(node.getLocalName())) {
-          if (recordElement != null) {
+    JsonArray subFields = null;
+    xmlStreamReader.next();
+    while (xmlStreamReader.hasNext()) {
+      int event = xmlStreamReader.getEventType();
+      if (event == XMLStreamConstants.START_ELEMENT) {
+        level++;
+        String elem = xmlStreamReader.getLocalName();
+        if (RECORD_LABEL.equals(elem)) {
+          recordNo++;
+          if (recordNo > 1) {
             throw new IllegalArgumentException("can not handle multiple records");
           }
-          recordElement = (Element) node;
+        } else if (LEADER_LABEL.equals(elem)) {
+          marc.put(LEADER_LABEL, getCdata(xmlStreamReader));
+          continue;
+        } else if (CONTROLFIELD_LABEL.equals(elem)) {
+          String tag = getAttribute(xmlStreamReader, TAG_LABEL);
+          fields.add(new JsonObject().put(tag, getCdata(xmlStreamReader)));
+          continue;
+        } else if (DATAFIELD_LABEL.equals(elem)) {
+          JsonObject field = new JsonObject();
+          for (int j = 1; j <= 9; j++) { // ISO 2709 allows more than 2 indicators
+            String ind = getAttribute(xmlStreamReader, "ind" + j);
+            if (ind != null) {
+              field.put("ind" + j, ind);
+            }
+          }
+          subFields = new JsonArray();
+          field.put(SUBFIELDS_LABEL, subFields);
+          String tag = getAttribute(xmlStreamReader, TAG_LABEL);
+          fields.add(new JsonObject().put(tag, field));
+        } else if (SUBFIELD_LABEL.equals(elem)) {
+          String code = getAttribute(xmlStreamReader, CODE_LABEL);
+          if (subFields == null) {
+            throw new IllegalArgumentException("subfield without field");
+          }
+          subFields.add(new JsonObject().put(code, getCdata(xmlStreamReader)));
+          continue;
+        } else if (!COLLECTION_LABEL.equals(elem)) {
+          throw new IllegalArgumentException("Bad marcxml element: " + elem);
         }
-        node = node.getNextSibling();
+      } else if (event == XMLStreamConstants.END_ELEMENT) {
+        level--;
+        if (level <= 0) {
+          break;
+        }
       }
+      xmlStreamReader.next();
     }
-    if (recordElement == null) {
+    if (recordNo == 0) {
       throw new IllegalArgumentException("No record element found");
     }
-    for (Node childNode = recordElement.getFirstChild();
-         childNode != null;
-         childNode = childNode.getNextSibling()) {
-
-      if (childNode.getNodeType() != Node.ELEMENT_NODE) {
-        continue;
-      }
-      Element childElement = (Element) childNode;
-      String textContent = childElement.getTextContent();
-      if (childElement.getLocalName().equals(LEADER_LABEL)) {
-        marcJson.put(LEADER_LABEL, textContent);
-      } else if (childElement.getLocalName().equals(CONTROLFIELD_LABEL)) {
-        JsonObject field = new JsonObject();
-        String marcTag = childElement.getAttribute(TAG_LABEL);
-        field.put(marcTag, textContent);
-        fields.add(field);
-      } else if (childElement.getLocalName().equals(DATAFIELD_LABEL)) {
-        JsonObject fieldContent = new JsonObject();
-        if (childElement.hasAttribute("ind1")) {
-          fieldContent.put("ind1", childElement.getAttribute("ind1"));
-        }
-        if (childElement.hasAttribute("ind1")) {
-          fieldContent.put("ind2", childElement.getAttribute("ind2"));
-        }
-        JsonArray subfields = new JsonArray();
-        fieldContent.put(SUBFIELDS_LABEL, subfields);
-        NodeList nodeList = childElement.getElementsByTagNameNS("*", SUBFIELD_LABEL);
-        for (int i = 0; i < nodeList.getLength(); i++) {
-          Element subField = (Element) nodeList.item(i);
-          String code = subField.getAttribute(CODE_LABEL);
-          String content = subField.getTextContent();
-          JsonObject subfieldJson = new JsonObject();
-          subfieldJson.put(code, content);
-          subfields.add(subfieldJson);
-        }
-        JsonObject field = new JsonObject();
-        String marcTag = childElement.getAttribute(TAG_LABEL);
-        field.put(marcTag, fieldContent);
-        fields.add(field);
-      }
-    }
     if (!fields.isEmpty()) {
-      marcJson.put(FIELDS_LABEL, fields);
+      marc.put(FIELDS_LABEL, fields);
     }
-    return marcJson;
+    return marc;
   }
 
   static String getXmlStreamerEventInfo(int event, XMLStreamReader xmlStreamReader) {
@@ -342,7 +358,7 @@ public final class XmlJsonUtil {
    * <p>This method does not care about namespaces. Only elements (local names), attributes
    * and text is dealt with.
    *
-   * @param event event type for node that begins the subdocument
+   * @param event event type for node that begins the sub document
    * @param reader XML stream reader
    * @return XML document string; null if no more documents in stream
    * @throws XMLStreamException if there's an exception for the XML stream
@@ -417,14 +433,10 @@ public final class XmlJsonUtil {
    * @param templates List of XSLT templates to apply
    * @return ingest JSON object
    * @throws TransformerException transformer problem
-   * @throws ParserConfigurationException parser problem
-   * @throws IOException input/io problem
-   * @throws SAXException sax problem (Invalid XML)
    * @throws XMLStreamException xml stream problem (Invalid XML)
    */
   public static JsonObject createIngestRecord(String marcXml, List<Templates> templates)
-      throws TransformerException, ParserConfigurationException,
-      IOException, SAXException, XMLStreamException {
+      throws TransformerException, XMLStreamException {
 
     String inventory = marcXml;
     for (Templates template : templates) {

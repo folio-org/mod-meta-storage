@@ -4,6 +4,7 @@ import java.io.InputStream;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
@@ -15,6 +16,14 @@ public class OaiParser {
 
   private String resumptionToken;
 
+  Function<XMLStreamReader, String> parseMetadata = x -> {
+    try {
+      return XmlJsonUtil.getSubDocument(x.next(), x);
+    } catch (XMLStreamException e) {
+      throw new RuntimeException(e);
+    }
+  };
+
   private final List<OaiRecord> records = new LinkedList<>();
 
   private int level;
@@ -22,6 +31,15 @@ public class OaiParser {
   public OaiParser() {
     factory = XMLInputFactory.newInstance();
     factory.setProperty(XMLInputFactory.SUPPORT_DTD, false);
+  }
+
+
+  /**
+   * Set parse metadata handler.
+   * @param parseMetadata handler converts XML stream of metadata content to string.
+   */
+  public void setParseMetadata(Function<XMLStreamReader,String> parseMetadata) {
+    this.parseMetadata = parseMetadata;
   }
 
   /**
@@ -105,9 +123,21 @@ public class OaiParser {
    * @param recordHandler record consumer
    * @throws XMLStreamException stream exception
    */
+
   public void parseResponse(InputStream stream, Consumer<OaiRecord> recordHandler)
       throws XMLStreamException {
     XMLStreamReader xmlStreamReader = factory.createXMLStreamReader(stream);
+    parseResponse(xmlStreamReader, recordHandler);
+  }
+
+  /**
+   * Parse OAI-PMH response from xmlStreamReader with custom metadata parser.
+   * @param xmlStreamReader reader that is used for reading MARC-XML
+   * @param recordHandler called for each record
+   * @throws XMLStreamException stream exception
+   */
+  public void parseResponse(XMLStreamReader xmlStreamReader, Consumer<OaiRecord> recordHandler)
+      throws XMLStreamException {
     level = 0;
     OaiRecord lastRecord = null;
     while (xmlStreamReader.hasNext()) {
@@ -125,7 +155,7 @@ public class OaiParser {
         } else if ("resumptionToken".equals(elem)) {
           parseResumptionToken(xmlStreamReader);
         } else if ("metadata".equals(elem)) {
-          lastRecord.metadata = XmlJsonUtil.getSubDocument(xmlStreamReader.next(), xmlStreamReader);
+          lastRecord.metadata = parseMetadata.apply(xmlStreamReader);
         } else if ("datestamp".equals(elem)) {
           parseDatestamp(xmlStreamReader, lastRecord);
         } else if ("identifier".equals(elem)) {
