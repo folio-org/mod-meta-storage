@@ -2,13 +2,15 @@ package org.folio.metastorage.server;
 
 import io.vertx.core.Future;
 import io.vertx.core.MultiMap;
+import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
+import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.RequestOptions;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.web.RoutingContext;
-import io.vertx.ext.web.client.HttpRequest;
-import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.validation.RequestParameters;
 import io.vertx.ext.web.validation.ValidationHandler;
 import io.vertx.sqlclient.Row;
@@ -16,6 +18,8 @@ import io.vertx.sqlclient.RowIterator;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.Tuple;
 import java.io.ByteArrayInputStream;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -29,7 +33,7 @@ public class OaiPmhClient {
 
   Vertx vertx;
 
-  WebClient webClient;
+  HttpClient httpClient;
 
   private static final String STATUS_LITERAL = "status";
 
@@ -49,7 +53,7 @@ public class OaiPmhClient {
 
   public OaiPmhClient(Vertx vertx) {
     this.vertx = vertx;
-    this.webClient = WebClient.create(vertx);
+    this.httpClient = vertx.createHttpClient();
   }
 
   /**
@@ -337,22 +341,27 @@ public class OaiPmhClient {
     return headers;
   }
 
-  static boolean addQueryParameterFromConfig(
-      HttpRequest<Buffer> req, JsonObject config,
-      String key) {
+  static void appendParameter(StringBuilder url, String key, String value) {
+    url.append('&');
+    url.append(key);
+    url.append('=');
+    url.append(URLEncoder.encode(value, StandardCharsets.UTF_8)); // TODO percent encoding
+  }
+
+  static boolean addQueryParameterFromConfig(StringBuilder url, JsonObject config, String key) {
     String value = config.getString(key);
     if (value == null) {
       return false;
     }
-    req.addQueryParam(key, value);
+    appendParameter(url, key, value);
     return true;
   }
 
-  static void addQueryParameterFromParams(HttpRequest<Buffer> req, JsonObject params) {
+  static void addQueryParameterFromParams(StringBuilder url, JsonObject params) {
     if (params != null) {
       params.forEach(e -> {
         if (e.getValue() instanceof String value) {
-          req.addQueryParam(e.getKey(), value);
+          appendParameter(url, e.getKey(), value);
         } else {
           throw new IllegalArgumentException("params " + e.getKey() + " value must be string");
         }
@@ -412,54 +421,67 @@ public class OaiPmhClient {
     });
   }
 
+  // RES ~ 4 GB  41304 records, 261,516,839 bytes
+  // RES  ~5 GB  25120 records, 148,344,550 bytes
+  // RES 8.4 GB 126026 records, 710,170,658 bytes
   void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
     JsonObject config = job.getJsonObject(CONFIG_LITERAL);
-
     log.info("oai client send request");
-    HttpRequest<Buffer> req = webClient.getAbs(config.getString("url"))
-        .putHeaders(getHttpHeaders(config));
-
-    OaiParser<JsonObject> oaiParser = new OaiParser();
-
-    if (!addQueryParameterFromConfig(req, config, RESUMPTION_TOKEN_LITERAL)) {
-      addQueryParameterFromConfig(req, config, "from");
-      addQueryParameterFromConfig(req, config, "until");
-      addQueryParameterFromConfig(req, config, "set");
-      addQueryParameterFromConfig(req, config, "metadataPrefix");
+    RequestOptions requestOptions = new RequestOptions();
+    requestOptions.setMethod(HttpMethod.GET);
+    requestOptions.setHeaders(getHttpHeaders(config));
+    StringBuilder url = new StringBuilder(config.getString("url") + "?" + "verb=ListRecords");
+    if (!addQueryParameterFromConfig(url, config, RESUMPTION_TOKEN_LITERAL)) {
+      addQueryParameterFromConfig(url, config, "from");
+      addQueryParameterFromConfig(url, config, "until");
+      addQueryParameterFromConfig(url, config, "set");
+      addQueryParameterFromConfig(url, config, "metadataPrefix");
     }
-    addQueryParameterFromParams(req, config.getJsonObject("params"));
-    req.addQueryParam("verb", "ListRecords")
-        .send()
+    addQueryParameterFromParams(url, config.getJsonObject("params"));
+    requestOptions.setAbsoluteURI(url.toString());
+    httpClient.request(requestOptions)
+        .compose(req -> req.send())
         .compose(res -> {
-          log.info("oai client handle response");
-          job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
-          if (res.statusCode() != 200) {
-            job.put(STATUS_LITERAL, IDLE_LITERAL);
-            job.put("errors", "OAI server returned HTTP status "
-                + res.statusCode() + "\n" + res.bodyAsString());
-            return updateJob(storage, connection, id, job)
-                .compose(x -> Future.failedFuture("stopping due to HTTP status error"));
-          }
-          return storage.getAvailableMatchConfigs(connection).compose(matchKeyConfigs ->
-            parseResponse(storage, oaiParser, res.bodyAsString(), matchKeyConfigs, config)
-                .compose(numberOfRecords -> {
-                  log.info("oai client ingest {} records", numberOfRecords);
-                  job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL)
-                      + numberOfRecords);
-                  String resumptionToken = oaiParser.getResumptionToken();
-                  String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
-                  if (resumptionToken == null || resumptionToken.equals(oldResumptionToken)) {
-                    config.remove(RESUMPTION_TOKEN_LITERAL);
-                    job.put(STATUS_LITERAL, IDLE_LITERAL);
-                    return updateJob(storage, connection, id, job)
-                        .compose(e -> Future.failedFuture(
-                            "stopping due to no resumptionToken or same resumptionToken"));
-                  }
-                  config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
-                  log.info("continuing with resumptionToken and records {}", job.encodePrettily());
-                  return updateJob(storage, connection, id, job);
-                })
-          );
+          Buffer body = Buffer.buffer();
+          Promise<Void> promise = Promise.promise();
+          res.handler(body::appendBuffer);
+          res.exceptionHandler(e -> promise.tryFail(e));
+          res.endHandler(end -> {
+            log.info("oai client handle response {} bytes", body.length());
+            job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
+            if (res.statusCode() != 200) {
+              job.put(STATUS_LITERAL, IDLE_LITERAL);
+              job.put("errors", "OAI server returned HTTP status "
+                  + res.statusCode() + "\n" + body);
+              updateJob(storage, connection, id, job)
+                  .onComplete(x -> promise.fail("stopping due to HTTP status error"));
+              return;
+            }
+            OaiParser<JsonObject> oaiParser = new OaiParser();
+            storage.getAvailableMatchConfigs(connection)
+                .compose(matchKeyConfigs ->
+                    parseResponse(storage, oaiParser, body.toString(), matchKeyConfigs, config)
+                        .compose(numberOfRecords -> {
+                          log.info("oai client ingest {} records", numberOfRecords);
+                          job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL)
+                              + numberOfRecords);
+                          String resumptionToken = oaiParser.getResumptionToken();
+                          String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
+                          if (resumptionToken == null
+                              || resumptionToken.equals(oldResumptionToken)) {
+                            config.remove(RESUMPTION_TOKEN_LITERAL);
+                            job.put(STATUS_LITERAL, IDLE_LITERAL);
+                            return updateJob(storage, connection, id, job)
+                                .compose(e -> Future.failedFuture(
+                                    "stopping due to no resumptionToken or same resumptionToken"));
+                          }
+                          config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
+                          log.info("continuing with resumptionToken");
+                          return updateJob(storage, connection, id, job);
+                        }))
+                .onComplete(promise);
+          });
+          return promise.future();
         })
         .onSuccess(x -> oaiHarvestLoop(storage, connection, id, job))
         .onFailure(e -> {
