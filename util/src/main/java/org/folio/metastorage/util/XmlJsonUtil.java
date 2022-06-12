@@ -374,7 +374,7 @@ public final class XmlJsonUtil {
           buffer.appendString("<").appendString(reader.getLocalName());
           if (level == 1) {
             String uri = reader.getNamespaceURI();
-            if (uri != null) {
+            if (uri != null && uri.length() > 0) {
               buffer
                   .appendString(" xmlns=\"")
                   .appendString(uri)
