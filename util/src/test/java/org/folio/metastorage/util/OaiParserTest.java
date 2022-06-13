@@ -40,10 +40,10 @@ public class OaiParserTest {
     List<OaiRecord<String>> records = new LinkedList<>();
     oaiParser.parseResponse(stream, records::add);
     assertThat(records, hasSize(4));
-    assertThat(records.get(0).isDeleted, is(true));
-    assertThat(records.get(1).isDeleted, is(false));
-    assertThat(records.get(2).isDeleted, is(false));
-    assertThat(records.get(3).isDeleted, is(false));
+    assertThat(records.get(0).deleted, is(true));
+    assertThat(records.get(1).deleted, is(false));
+    assertThat(records.get(2).deleted, is(false));
+    assertThat(records.get(3).deleted, is(false));
     assertThat(records.get(0).identifier, is("998212783503681"));
     assertThat(records.get(1).identifier, is("9977919382003681"));
     assertThat(records.get(2).identifier, is("9977924842403681"));
@@ -77,7 +77,7 @@ public class OaiParserTest {
     assertThat(oaiParser.getResumptionToken(), is("MzM5OzE7Ozt2MS4w"));
     assertThat(records, hasSize(1));
     assertThat(records.get(0).getMetadata(), nullValue());
-    assertThat(records.get(0).getIsDeleted(), is(true));
+    assertThat(records.get(0).isDeleted(), is(true));
     assertThat(records.get(0).getDatestamp(), is("2022-05-03"));
     assertThat(records.get(0).getIdentifier(), is("998212783503681"));
   }
@@ -90,10 +90,10 @@ public class OaiParserTest {
     List<OaiRecord<String>> records = new LinkedList<>();
     oaiParser.parseResponse(stream, records::add);
     assertThat(records, hasSize(4));
-    assertThat(records.get(0).isDeleted, is(true));
-    assertThat(records.get(1).isDeleted, is(false));
-    assertThat(records.get(2).isDeleted, is(false));
-    assertThat(records.get(3).isDeleted, is(false));
+    assertThat(records.get(0).deleted, is(true));
+    assertThat(records.get(1).deleted, is(false));
+    assertThat(records.get(2).deleted, is(false));
+    assertThat(records.get(3).deleted, is(false));
     assertThat(records.get(0).identifier, is("998212783503681"));
     assertThat(records.get(1).identifier, is("9977919382003681"));
     assertThat(records.get(2).identifier, is("9977924842403681"));
@@ -118,10 +118,10 @@ public class OaiParserTest {
     oaiParser.setParseMetadata(x -> XmlJsonUtil.convertMarcXmlToJson(x));
     oaiParser.parseResponse(xmlStreamReader, records::add);
     assertThat(records, hasSize(4));
-    assertThat(records.get(0).isDeleted, is(true));
-    assertThat(records.get(1).isDeleted, is(false));
-    assertThat(records.get(2).isDeleted, is(false));
-    assertThat(records.get(3).isDeleted, is(false));
+    assertThat(records.get(0).deleted, is(true));
+    assertThat(records.get(1).deleted, is(false));
+    assertThat(records.get(2).deleted, is(false));
+    assertThat(records.get(3).deleted, is(false));
     assertThat(records.get(0).identifier, is("998212783503681"));
     assertThat(records.get(1).identifier, is("9977919382003681"));
     assertThat(records.get(2).identifier, is("9977924842403681"));

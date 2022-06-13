@@ -3,7 +3,7 @@ package org.folio.metastorage.util;
 public class OaiRecord<T> {
   String datestamp;
   String identifier;
-  boolean isDeleted;
+  boolean deleted;
   T metadata;
 
   public String getDatestamp() {
@@ -14,8 +14,8 @@ public class OaiRecord<T> {
     return identifier;
   }
 
-  public boolean getIsDeleted() {
-    return isDeleted;
+  public boolean isDeleted() {
+    return deleted;
   }
 
   public T getMetadata() {

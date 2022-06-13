@@ -375,7 +375,7 @@ public class OaiPmhClient {
     try {
       JsonObject globalRecord = new JsonObject();
       globalRecord.put("localId", oaiRecord.getIdentifier());
-      if (oaiRecord.getIsDeleted()) {
+      if (oaiRecord.isDeleted()) {
         globalRecord.put("delete", true);
       } else {
         globalRecord.put("payload", new JsonObject().put("marc", oaiRecord.getMetadata()));
@@ -457,7 +457,7 @@ public class OaiPmhClient {
                   .onComplete(x -> promise.fail("stopping due to HTTP status error"));
               return;
             }
-            OaiParser<JsonObject> oaiParser = new OaiParser();
+            OaiParser<JsonObject> oaiParser = new OaiParser<>();
             storage.getAvailableMatchConfigs(connection)
                 .compose(matchKeyConfigs ->
                     parseResponse(storage, oaiParser, body.toString(), matchKeyConfigs, config)

@@ -60,7 +60,7 @@ public class OaiParser<T> {
     for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
       if ("status".equals(xmlStreamReader.getAttributeLocalName(i))
           && "deleted".equals(xmlStreamReader.getAttributeValue(i))) {
-        lastRecord.isDeleted = true;
+        lastRecord.deleted = true;
       }
     }
   }
