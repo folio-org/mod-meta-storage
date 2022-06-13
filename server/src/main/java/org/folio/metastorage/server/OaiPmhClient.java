@@ -4,7 +4,6 @@ import io.vertx.core.Future;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
-import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.RequestOptions;
@@ -17,16 +16,17 @@ import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowIterator;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.Tuple;
-import java.io.ByteArrayInputStream;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.folio.metastorage.util.OaiParser;
+import org.folio.metastorage.util.OaiMetadataParser;
+import org.folio.metastorage.util.OaiMetadataParserMarcInJson;
+import org.folio.metastorage.util.OaiParserStream;
 import org.folio.metastorage.util.OaiRecord;
 import org.folio.metastorage.util.SourceId;
-import org.folio.metastorage.util.XmlJsonUtil;
+import org.folio.metastorage.util.XmlParser;
 import org.folio.okapi.common.HttpResponse;
 
 public class OaiPmhClient {
@@ -391,42 +391,12 @@ public class OaiPmhClient {
     String value;
   }
 
-  Future<Integer> parseResponse(
-      Storage storage, OaiParser<JsonObject> oaiParser, String body,
-      JsonArray matchKeyConfigs, JsonObject config) {
-    AtomicInteger numberOfRecords = new AtomicInteger();
-    return vertx.executeBlocking(p -> {
-      try {
-        SourceId sourceId = new SourceId(config.getString("sourceId"));
-        oaiParser.clear();
-        Datestamp newestDatestamp = new Datestamp();
-        oaiParser.setParseMetadata(x -> XmlJsonUtil.convertMarcXmlToJson(x));
-        oaiParser.parseResponse(new ByteArrayInputStream(body.getBytes()),
-            oaiRecord -> {
-              ingestRecord(storage, oaiRecord, sourceId, matchKeyConfigs);
-              numberOfRecords.incrementAndGet();
-              String datestamp = oaiRecord.getDatestamp();
-              if (newestDatestamp.value == null || datestamp.compareTo(newestDatestamp.value) > 0) {
-                newestDatestamp.value = datestamp;
-              }
-            });
-        if (newestDatestamp.value != null) {
-          config.put("from", Util.getNextOaiDate(newestDatestamp.value));
-        }
-      } catch (Exception e) {
-        p.fail(e.getMessage());
-        return;
-      }
-      p.complete(numberOfRecords.get());
-    });
-  }
-
   // RES ~ 4 GB  41304 records, 261,516,839 bytes
   // RES  ~5 GB  25120 records, 148,344,550 bytes
   // RES 8.4 GB 126026 records, 710,170,658 bytes
   void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
     JsonObject config = job.getJsonObject(CONFIG_LITERAL);
-    log.info("oai client send request");
+    log.info("client send request");
     RequestOptions requestOptions = new RequestOptions();
     requestOptions.setMethod(HttpMethod.GET);
     requestOptions.setHeaders(getHttpHeaders(config));
@@ -439,50 +409,63 @@ public class OaiPmhClient {
     }
     addQueryParameterFromParams(url, config.getJsonObject("params"));
     requestOptions.setAbsoluteURI(url.toString());
-    httpClient.request(requestOptions)
-        .compose(req -> req.send())
-        .compose(res -> {
-          Buffer body = Buffer.buffer();
-          Promise<Void> promise = Promise.promise();
-          res.handler(body::appendBuffer);
-          res.exceptionHandler(e -> promise.tryFail(e));
-          res.endHandler(end -> {
-            log.info("oai client handle response {} bytes", body.length());
-            job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
-            if (res.statusCode() != 200) {
-              job.put(STATUS_LITERAL, IDLE_LITERAL);
-              job.put("errors", "OAI server returned HTTP status "
-                  + res.statusCode() + "\n" + body);
-              updateJob(storage, connection, id, job)
-                  .onComplete(x -> promise.fail("stopping due to HTTP status error"));
-              return;
-            }
-            OaiParser<JsonObject> oaiParser = new OaiParser<>();
-            storage.getAvailableMatchConfigs(connection)
-                .compose(matchKeyConfigs ->
-                    parseResponse(storage, oaiParser, body.toString(), matchKeyConfigs, config)
-                        .compose(numberOfRecords -> {
-                          log.info("oai client ingest {} records", numberOfRecords);
-                          job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL)
-                              + numberOfRecords);
-                          String resumptionToken = oaiParser.getResumptionToken();
-                          String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
-                          if (resumptionToken == null
-                              || resumptionToken.equals(oldResumptionToken)) {
-                            config.remove(RESUMPTION_TOKEN_LITERAL);
-                            job.put(STATUS_LITERAL, IDLE_LITERAL);
-                            return updateJob(storage, connection, id, job)
-                                .compose(e -> Future.failedFuture(
-                                    "stopping due to no resumptionToken or same resumptionToken"));
-                          }
-                          config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
-                          log.info("continuing with resumptionToken");
-                          return updateJob(storage, connection, id, job);
-                        }))
-                .onComplete(promise);
-          });
-          return promise.future();
-        })
+
+    storage.getAvailableMatchConfigs(connection)
+        .compose(matchKeyConfigs ->
+            httpClient.request(requestOptions)
+                .compose(req -> req.send())
+                .compose(res -> {
+                  log.info("client handle response");
+                  job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
+                  if (res.statusCode() != 200) {
+                    job.put(STATUS_LITERAL, IDLE_LITERAL);
+                    job.put("errors", "OAI server returned HTTP status " + res.statusCode());
+                    return updateJob(storage, connection, id, job)
+                        .compose(x -> Future.failedFuture("stopping due to HTTP status error"));
+                  }
+                  XmlParser xmlParser = XmlParser.newParser(res);
+                  Promise<Void> promise = Promise.promise();
+                  OaiMetadataParser<JsonObject> metadataParser = new OaiMetadataParserMarcInJson();
+                  SourceId sourceId = new SourceId(config.getString("sourceId"));
+                  Datestamp newestDatestamp = new Datestamp();
+                  AtomicInteger cnt = new AtomicInteger();
+                  OaiParserStream<JsonObject> oaiParserStream =
+                      new OaiParserStream<>(xmlParser,
+                          oaiRecord -> {
+                            cnt.incrementAndGet();
+                            String datestamp = oaiRecord.getDatestamp();
+                            if (newestDatestamp.value == null
+                                || datestamp.compareTo(newestDatestamp.value) > 0) {
+                              newestDatestamp.value = datestamp;
+                            }
+                            xmlParser.pause();
+                            ingestRecord(storage, oaiRecord, sourceId, matchKeyConfigs)
+                                .onComplete(x -> xmlParser.resume());
+                          },
+                          metadataParser);
+                  oaiParserStream.exceptionHandler(e -> promise.fail(e));
+                  xmlParser.endHandler(end -> {
+                    job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL) + cnt.get());
+                    log.info("ingested {} records", cnt.get());
+                    if (newestDatestamp.value != null) {
+                      config.put("from", Util.getNextOaiDate(newestDatestamp.value));
+                    }
+                    String resumptionToken = oaiParserStream.getResumptionToken();
+                    String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
+                    if (resumptionToken == null
+                        || resumptionToken.equals(oldResumptionToken)) {
+                      config.remove(RESUMPTION_TOKEN_LITERAL);
+                      job.put(STATUS_LITERAL, IDLE_LITERAL);
+                      updateJob(storage, connection, id, job)
+                          .onComplete(e -> promise.fail("stopping due to no resumptionToken"));
+                    } else {
+                      config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
+                      log.info("continuing with resumptionToken");
+                      updateJob(storage, connection, id, job).onComplete(x -> promise.handle(x));
+                    }
+                  });
+                  return promise.future();
+                }))
         .onSuccess(x -> oaiHarvestLoop(storage, connection, id, job))
         .onFailure(e -> {
           log.error(e.getMessage(), e);
