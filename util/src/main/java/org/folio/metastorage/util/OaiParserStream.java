@@ -21,45 +21,17 @@ public class OaiParserStream<T> {
   int metadataLevel;
 
   void endElement() {
-    if (elem == null) {
-      cdata.setLength(0);
-      return;
-    }
-    String val = cdata.toString();
-    switch (elem) {
-      case "resumptionToken":
-        resumptionToken = val;
-        break;
-      case "datestamp":
-        lastRecord.datestamp = val;
-        break;
-      case "identifier":
-        lastRecord.identifier = val;
-        break;
-      default:
+    if (elem != null) {
+      String val = cdata.toString();
+      switch (elem) {
+        case "resumptionToken" -> resumptionToken = val;
+        case "datestamp" -> lastRecord.datestamp = val;
+        case "identifier" -> lastRecord.identifier = val;
+        default -> { }
+      }
+      elem = null;
     }
     cdata.setLength(0);
-    elem = null;
-  }
-
-  private Consumer<XMLStreamReader> metadataHandler;
-
-  /**
-   * Set handler that is called for XML events inside "metadata" element.
-   * @param handler method for handling XML stream event
-   */
-  public void setMetadataHandler(Consumer<XMLStreamReader> handler) {
-    metadataHandler = handler;
-  }
-
-  private Supplier<T> metadataCreate;
-
-  /**
-   * Set handler that constructs metadata of type T.
-   * @param s supplier/handle
-   */
-  public void setMetadataCreate(Supplier<T> s) {
-    metadataCreate = s;
   }
 
   /**
@@ -74,54 +46,68 @@ public class OaiParserStream<T> {
    * Parse OAI response from stream.
    * @param stream XML parser stream
    * @param recordHandler handler that is called for each record
+   * @param metadataParser metadata parser
    */
-  public OaiParserStream(ReadStream<XMLStreamReader> stream, Consumer<OaiRecord<T>> recordHandler) {
+  public OaiParserStream(ReadStream<XMLStreamReader> stream, Consumer<OaiRecord<T>> recordHandler,
+      OaiMetadataParser<T> metadataParser) {
     level = 0;
     elem = null;
     lastRecord = null;
     metadataLevel = 0;
     cdata = new StringBuilder();
     stream.handler(xmlStreamReader -> {
-      int event = xmlStreamReader.getEventType();
-      if (event == XMLStreamConstants.START_ELEMENT) {
-        level++;
-        if (metadataLevel != 0 && level > metadataLevel) {
-          metadataHandler.accept(xmlStreamReader);
-        } else {
-          endElement();
-          elem = xmlStreamReader.getLocalName();
-          if (level == 3 && ("record".equals(elem) || "header".equals(elem))) {
-            if (lastRecord != null) {
-              recordHandler.accept(lastRecord);
-            }
-            lastRecord = new OaiRecord<>();
+      try {
+        int event = xmlStreamReader.getEventType();
+        if (event == XMLStreamConstants.END_DOCUMENT) {
+          if (lastRecord != null) {
+            recordHandler.accept(lastRecord);
           }
-          if ("header".equals(elem)) {
-            for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
-              if ("status".equals(xmlStreamReader.getAttributeLocalName(i))
-                  && "deleted".equals(xmlStreamReader.getAttributeValue(i))) {
-                lastRecord.deleted = true;
+        }
+        if (event == XMLStreamConstants.START_ELEMENT) {
+          level++;
+          if (metadataLevel != 0 && level > metadataLevel) {
+            metadataParser.handle(xmlStreamReader);
+          } else {
+            endElement();
+            elem = xmlStreamReader.getLocalName();
+            if (level == 3 && ("record".equals(elem) || "header".equals(elem))) {
+              if (lastRecord != null) {
+                recordHandler.accept(lastRecord);
+              }
+              lastRecord = new OaiRecord<>();
+              metadataParser.init();
+            }
+            if ("header".equals(elem)) {
+              for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
+                if ("status".equals(xmlStreamReader.getAttributeLocalName(i))
+                    && "deleted".equals(xmlStreamReader.getAttributeValue(i))) {
+                  lastRecord.deleted = true;
+                }
               }
             }
+            if ("metadata".equals(elem)) {
+              metadataLevel = level;
+            }
           }
-          if ("metadata".equals(elem)) {
-            metadataLevel = level;
+        } else if (event == XMLStreamConstants.END_ELEMENT) {
+          level--;
+          if (metadataLevel != 0) {
+            if (level > metadataLevel) {
+              metadataParser.handle(xmlStreamReader);
+            } else {
+              lastRecord.metadata = metadataParser.result();
+              metadataLevel = 0;
+            }
+          } else {
+            endElement();
           }
+        } else if (metadataLevel != 0 && level > metadataLevel) {
+          metadataParser.handle(xmlStreamReader);
+        } else if (event == XMLStreamConstants.CHARACTERS) {
+          cdata.append(xmlStreamReader.getText());
         }
-      } else if (event == XMLStreamConstants.END_ELEMENT) {
-        level--;
-        if (level < metadataLevel) {
-          lastRecord.metadata = metadataCreate.get();
-          metadataLevel = 0;
-        }
-        endElement();
-      } else if (event == XMLStreamConstants.CHARACTERS) {
-        cdata.append(xmlStreamReader.getText());
-      }
-    });
-    stream.endHandler(end -> {
-      if (lastRecord != null) {
-        recordHandler.accept(lastRecord);
+      } catch (Exception e) {
+        System.out.println(e.getMessage());
       }
     });
   }

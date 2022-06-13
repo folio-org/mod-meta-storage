@@ -5,7 +5,6 @@ import io.vertx.core.json.JsonObject;
 import java.io.*;
 import java.util.ArrayList;
 import java.util.List;
-import javax.xml.parsers.ParserConfigurationException;
 import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
@@ -20,7 +19,6 @@ import javax.xml.transform.stream.StreamSource;
 import org.folio.okapi.testing.UtilityClassTester;
 import org.junit.Assert;
 import org.junit.Test;
-import org.xml.sax.SAXException;
 
 public class XmlJsonUtilTest {
   static final String MARCXML1_SAMPLE =
@@ -486,7 +484,7 @@ public class XmlJsonUtilTest {
 
   @Test
   public void testCreateIngestRecord10() throws IOException, XMLStreamException,
-      TransformerException, ParserConfigurationException, SAXException {
+      TransformerException {
 
     TransformerFactory transformerFactory = TransformerFactory.newInstance();
     Source instanceXslt = new StreamSource("../xsl/marc2inventory-instance.xsl");
