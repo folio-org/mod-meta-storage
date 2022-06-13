@@ -29,7 +29,6 @@ public class OaiParserStream<T> {
         case "resumptionToken" -> resumptionToken = val;
         case "datestamp" -> lastRecord.datestamp = val;
         case "identifier" -> lastRecord.identifier = val;
-        default -> { }
       }
       elem = null;
     }

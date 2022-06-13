@@ -223,11 +223,11 @@ public class XmlJsonUtilTest {
 
      XMLStreamReader xmlStreamReader =
         factory.createXMLStreamReader(new ByteArrayInputStream(doc.getBytes()));
-     Assert.assertEquals(XMLStreamReader.START_ELEMENT, xmlStreamReader.next());
+     Assert.assertEquals(XMLStreamConstants.START_ELEMENT, xmlStreamReader.next());
      XmlJsonUtil.convertMarcXmlToJson(xmlStreamReader);
-     Assert.assertEquals(XMLStreamReader.END_ELEMENT, xmlStreamReader.next());
+     Assert.assertEquals(XMLStreamConstants.END_ELEMENT, xmlStreamReader.next());
      Assert.assertEquals("a", xmlStreamReader.getLocalName());
-     Assert.assertEquals(XMLStreamReader.END_DOCUMENT, xmlStreamReader.next());
+     Assert.assertEquals(XMLStreamConstants.END_DOCUMENT, xmlStreamReader.next());
      Assert.assertFalse(xmlStreamReader.hasNext());
   }
   @Test

@@ -2,6 +2,7 @@ package org.folio.metastorage.util;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamReader;
 
 public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject> {
@@ -58,7 +59,6 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
         case LEADER_LABEL -> marc.put(LEADER_LABEL, val);
         case CONTROLFIELD_LABEL -> fields.add(new JsonObject().put(tag, val));
         case SUBFIELD_LABEL -> subFields.add(new JsonObject().put(code, val));
-        default -> { }
       }
       elem = null;
     }
@@ -68,7 +68,7 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
   @Override
   public void handle(XMLStreamReader stream) {
     int event = stream.getEventType();
-    if (event == XMLStreamReader.START_ELEMENT) {
+    if (event == XMLStreamConstants.START_ELEMENT) {
       endElement();
       elem = stream.getLocalName();
       if (RECORD_LABEL.equals(elem)) {
@@ -100,9 +100,9 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
       } else if (!COLLECTION_LABEL.equals(elem)) {
         throw new IllegalArgumentException("Bad marcxml element: " + elem);
       }
-    } else if (event == XMLStreamReader.END_ELEMENT) {
+    } else if (event == XMLStreamConstants.END_ELEMENT) {
       endElement();
-    } else if (event == XMLStreamReader.CHARACTERS) {
+    } else if (event == XMLStreamConstants.CHARACTERS) {
       cdata.append(stream.getText());
     }
   }
