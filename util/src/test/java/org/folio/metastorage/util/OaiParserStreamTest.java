@@ -41,7 +41,7 @@ public class OaiParserStreamTest {
       OaiMetadataParser<JsonObject> metadataParser = new OaiMetadataParserMarcInJson();
       OaiParserStream<JsonObject> oaiParserStream = new OaiParserStream<>(xmlParser, recordHandler, metadataParser);
       Promise<OaiParserStream<JsonObject>> promise = Promise.promise();
-      xmlParser.exceptionHandler(e -> promise.tryFail(e));
+      oaiParserStream.exceptionHandler(e -> promise.tryFail(e));
       xmlParser.endHandler(e -> promise.complete(oaiParserStream));
       return promise.future();
     });
@@ -92,5 +92,35 @@ public class OaiParserStreamTest {
           assertThat(records.get(0).getDatestamp(), is("2022-05-03"));
           assertThat(records.get(0).getIdentifier(), is("998212783503681"));
         }));
+  }
+
+  @Test
+  public void listRecords4(TestContext context) {
+    List<OaiRecord<JsonObject>> records = new ArrayList<>();
+    parseOai("oai-response-4.xml", records::add)
+        .onComplete(context.asyncAssertSuccess(oaiParserStream -> {
+          assertThat(records, hasSize(4));
+          assertThat(records.get(0).deleted, is(true));
+          assertThat(records.get(1).deleted, is(false));
+          assertThat(records.get(2).deleted, is(false));
+          assertThat(records.get(3).deleted, is(false));
+          assertThat(records.get(0).identifier, is("998212783503681"));
+          assertThat(records.get(1).identifier, is("9977919382003681"));
+          assertThat(records.get(2).identifier, is("9977924842403681"));
+          assertThat(records.get(3).identifier, is("9977648149503681"));
+          assertThat(records.get(0).metadata, nullValue());
+          assertThat(records.get(1).metadata, nullValue());
+          assertThat(records.get(2).metadata, nullValue());
+          assertThat(records.get(3).metadata, nullValue());
+          assertThat(oaiParserStream.getResumptionToken(), is("MzM5OzE7Ozt2MS4w"));
+          assertThat(records.get(3).datestamp, is("2022-05-03"));
+        }));
+  }
+
+  @Test
+  public void listRecords5(TestContext context) {
+    List<OaiRecord<JsonObject>> records = new ArrayList<>();
+    parseOai("oai-response-5.xml", records::add)
+        .onComplete(context.asyncAssertFailure(e -> assertThat(e.getMessage(), is("Bad marcxml element: foo"))));
   }
 }

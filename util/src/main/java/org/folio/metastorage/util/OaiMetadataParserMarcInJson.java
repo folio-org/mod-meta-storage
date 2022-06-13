@@ -68,7 +68,6 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
   @Override
   public void handle(XMLStreamReader stream) {
     int event = stream.getEventType();
-    // System.out.println("event=" + event);
     if (event == XMLStreamReader.START_ELEMENT) {
       endElement();
       elem = stream.getLocalName();
@@ -110,6 +109,9 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
 
   @Override
   public JsonObject result() {
+    if (recordNo == 0) {
+      throw new IllegalArgumentException("No record element found");
+    }
     if (!fields.isEmpty()) {
       marc.put(FIELDS_LABEL, fields);
     }

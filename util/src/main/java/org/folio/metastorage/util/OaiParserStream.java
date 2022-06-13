@@ -1,12 +1,14 @@
 package org.folio.metastorage.util;
 
+import io.vertx.core.Handler;
 import io.vertx.core.streams.ReadStream;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamReader;
 
 public class OaiParserStream<T> {
+
+  private Handler<Throwable> exceptionHandler;
 
   int level;
 
@@ -14,7 +16,7 @@ public class OaiParserStream<T> {
 
   OaiRecord<T> lastRecord;
 
-  StringBuilder cdata;
+  final StringBuilder cdata = new StringBuilder();
 
   String resumptionToken;
 
@@ -42,6 +44,11 @@ public class OaiParserStream<T> {
     return resumptionToken;
   }
 
+  public OaiParserStream<T> exceptionHandler(Handler<Throwable> handler) {
+    exceptionHandler = handler;
+    return this;
+  }
+
   /**
    * Parse OAI response from stream.
    * @param stream XML parser stream
@@ -50,11 +57,6 @@ public class OaiParserStream<T> {
    */
   public OaiParserStream(ReadStream<XMLStreamReader> stream, Consumer<OaiRecord<T>> recordHandler,
       OaiMetadataParser<T> metadataParser) {
-    level = 0;
-    elem = null;
-    lastRecord = null;
-    metadataLevel = 0;
-    cdata = new StringBuilder();
     stream.handler(xmlStreamReader -> {
       try {
         int event = xmlStreamReader.getEventType();
@@ -107,8 +109,9 @@ public class OaiParserStream<T> {
           cdata.append(xmlStreamReader.getText());
         }
       } catch (Exception e) {
-        System.out.println(e.getMessage());
+        exceptionHandler.handle(e);
       }
     });
+    stream.exceptionHandler(e -> exceptionHandler.handle(e));
   }
 }
