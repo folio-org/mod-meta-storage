@@ -57,7 +57,7 @@ public final class JsonToMarcXml {
               subfieldObject.fieldNames().forEach(sub -> {
                 s.append("    <" + SUBFIELD_LABEL);
                 s.append(" code=\"" + encodeXmlText(sub) + "\">");
-                s.append(subfieldObject.getString(sub));
+                s.append(encodeXmlText(subfieldObject.getString(sub)));
                 s.append("</" + SUBFIELD_LABEL + ">\n");
               });
             }
