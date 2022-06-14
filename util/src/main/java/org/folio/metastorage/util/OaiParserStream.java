@@ -71,49 +71,10 @@ public class OaiParserStream<T> {
           if (lastRecord != null) {
             recordHandler.accept(lastRecord);
           }
-        }
-        if (event == XMLStreamConstants.START_ELEMENT) {
-          level++;
-          if (metadataLevel != 0 && level > metadataLevel) {
-            metadataParser.handle(xmlStreamReader);
-          } else {
-            elem = xmlStreamReader.getLocalName();
-            if (level == 3 && ("record".equals(elem) || "header".equals(elem))) {
-              if (lastRecord != null) {
-                recordHandler.accept(lastRecord);
-              }
-              lastRecord = new OaiRecord<>();
-              metadataParser.init();
-            }
-            if ("header".equals(elem)) {
-              for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
-                if ("status".equals(xmlStreamReader.getAttributeLocalName(i))
-                    && "deleted".equals(xmlStreamReader.getAttributeValue(i))) {
-                  lastRecord.deleted = true;
-                }
-              }
-            } else if ("metadata".equals(elem)) {
-              metadataLevel = level;
-            } else if ("resumptionToken".equals(elem)) {
-              setHandleText(text -> resumptionToken = text);
-            } else if ("datestamp".equals(elem)) {
-              setHandleText(text -> lastRecord.datestamp = text);
-            } else if ("identifier".equals(elem)) {
-              setHandleText(text -> lastRecord.identifier = text);
-            }
-          }
+        } else if (event == XMLStreamConstants.START_ELEMENT) {
+          startElement(recordHandler, metadataParser, xmlStreamReader);
         } else if (event == XMLStreamConstants.END_ELEMENT) {
-          level--;
-          if (metadataLevel != 0) {
-            if (level > metadataLevel) {
-              metadataParser.handle(xmlStreamReader);
-            } else {
-              lastRecord.metadata = metadataParser.result();
-              metadataLevel = 0;
-            }
-          } else {
-            checkHandleText();
-          }
+          endElement(metadataParser, xmlStreamReader);
         } else if (metadataLevel != 0 && level > metadataLevel) {
           metadataParser.handle(xmlStreamReader);
         } else if (event == XMLStreamConstants.CHARACTERS) {
@@ -125,4 +86,52 @@ public class OaiParserStream<T> {
     });
     stream.exceptionHandler(e -> exceptionHandler.handle(e));
   }
+
+  private void startElement(Consumer<OaiRecord<T>> recordHandler,
+      OaiMetadataParser<T> metadataParser, XMLStreamReader xmlStreamReader) {
+    level++;
+    if (metadataLevel != 0 && level > metadataLevel) {
+      metadataParser.handle(xmlStreamReader);
+    } else {
+      elem = xmlStreamReader.getLocalName();
+      if (level == 3 && ("record".equals(elem) || "header".equals(elem))) {
+        if (lastRecord != null) {
+          recordHandler.accept(lastRecord);
+        }
+        lastRecord = new OaiRecord<>();
+        metadataParser.init();
+      }
+      if ("header".equals(elem)) {
+        for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
+          if ("status".equals(xmlStreamReader.getAttributeLocalName(i))
+              && "deleted".equals(xmlStreamReader.getAttributeValue(i))) {
+            lastRecord.deleted = true;
+          }
+        }
+      } else if ("metadata".equals(elem)) {
+        metadataLevel = level;
+      } else if ("resumptionToken".equals(elem)) {
+        setHandleText(text -> resumptionToken = text);
+      } else if ("datestamp".equals(elem)) {
+        setHandleText(text -> lastRecord.datestamp = text);
+      } else if ("identifier".equals(elem)) {
+        setHandleText(text -> lastRecord.identifier = text);
+      }
+    }
+  }
+
+  private void endElement(OaiMetadataParser<T> metadataParser, XMLStreamReader xmlStreamReader) {
+    level--;
+    if (metadataLevel != 0) {
+      if (level > metadataLevel) {
+        metadataParser.handle(xmlStreamReader);
+      } else {
+        lastRecord.metadata = metadataParser.result();
+        metadataLevel = 0;
+      }
+    } else {
+      checkHandleText();
+    }
+  }
+
 }

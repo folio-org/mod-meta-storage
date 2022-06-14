@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.folio.metastorage.util.JsonToMarcXml;
 import org.folio.metastorage.util.XmlJsonUtil;
 
 public final class OaiService {
@@ -236,7 +237,7 @@ public final class OaiService {
       return null; // a deleted record
     }
     XmlJsonUtil.createMarcDataField(combinedMarc, "999", "1", "0").addAll(identifiersField);
-    String xmlMetadata = XmlJsonUtil.convertJsonToMarcXml(combinedMarc);
+    String xmlMetadata = JsonToMarcXml.convert(combinedMarc);
     return "    <metadata>\n" + xmlMetadata + "\n    </metadata>\n";
   }
 

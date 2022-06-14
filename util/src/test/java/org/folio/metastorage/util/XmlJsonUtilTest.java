@@ -199,19 +199,19 @@ public class XmlJsonUtilTest {
 
   @Test
   public void convertJsonToMarcXml1() {
-    String got = XmlJsonUtil.convertJsonToMarcXml(MARCJSON1_SAMPLE);
+    String got = JsonToMarcXml.convert(MARCJSON1_SAMPLE);
     Assert.assertEquals(MARCXML1_SAMPLE, got);
   }
 
   @Test
   public void convertJsonToMarcXml2() {
-    String got = XmlJsonUtil.convertJsonToMarcXml(MARCJSON2_SAMPLE);
+    String got = JsonToMarcXml.convert(MARCJSON2_SAMPLE);
     Assert.assertEquals(MARCXML2_SAMPLE, got);
   }
 
   @Test
   public void convertJsonToMarcXml3() {
-    String got = XmlJsonUtil.convertJsonToMarcXml(MARCJSON3_SAMPLE);
+    String got = JsonToMarcXml.convert(MARCJSON3_SAMPLE);
     Assert.assertEquals(MARCXML3_SAMPLE, got);
   }
 
@@ -224,7 +224,7 @@ public class XmlJsonUtilTest {
      XMLStreamReader xmlStreamReader =
         factory.createXMLStreamReader(new ByteArrayInputStream(doc.getBytes()));
      Assert.assertEquals(XMLStreamConstants.START_ELEMENT, xmlStreamReader.next());
-     XmlJsonUtil.convertMarcXmlToJson(xmlStreamReader);
+     MarcXmlToJson.convert(xmlStreamReader);
      Assert.assertEquals(XMLStreamConstants.END_ELEMENT, xmlStreamReader.next());
      Assert.assertEquals("a", xmlStreamReader.getLocalName());
      Assert.assertEquals(XMLStreamConstants.END_DOCUMENT, xmlStreamReader.next());
@@ -232,30 +232,30 @@ public class XmlJsonUtilTest {
   }
   @Test
   public void convertMarcXmlToJsonRecord1() throws XMLStreamException {
-    JsonObject got = XmlJsonUtil.convertMarcXmlToJson(MARCXML1_SAMPLE);
+    JsonObject got = MarcXmlToJson.convert(MARCXML1_SAMPLE);
     Assert.assertEquals(MARCJSON1_SAMPLE, got);
     String collection = "<collection>" + MARCXML1_SAMPLE + "</collection>";
-    got = XmlJsonUtil.convertMarcXmlToJson(collection);
+    got = MarcXmlToJson.convert(collection);
     Assert.assertEquals(MARCJSON1_SAMPLE, got);
   }
 
   @Test
   public void convertMarcXmlToJsonRecord2() throws XMLStreamException {
-      JsonObject got = XmlJsonUtil.convertMarcXmlToJson(MARCXML2_SAMPLE);
+      JsonObject got = MarcXmlToJson.convert(MARCXML2_SAMPLE);
       Assert.assertEquals(MARCJSON2_SAMPLE, got);
 
       String collection = "<collection>" + MARCXML2_SAMPLE + "</collection>";
-      got = XmlJsonUtil.convertMarcXmlToJson(collection);
+      got = MarcXmlToJson.convert(collection);
       Assert.assertEquals(MARCJSON2_SAMPLE, got);
   }
 
   @Test
   public void convertMarcXmlToJsonRecord3() throws XMLStreamException {
-    JsonObject got = XmlJsonUtil.convertMarcXmlToJson(MARCXML3_SAMPLE);
+    JsonObject got = MarcXmlToJson.convert(MARCXML3_SAMPLE);
     Assert.assertEquals(MARCJSON3_SAMPLE, got);
 
     String collection = "<collection>" + MARCXML3_SAMPLE + "</collection>";
-    got = XmlJsonUtil.convertMarcXmlToJson(collection);
+    got = MarcXmlToJson.convert(collection);
     Assert.assertEquals(MARCJSON3_SAMPLE, got);
   }
 
@@ -263,7 +263,7 @@ public class XmlJsonUtilTest {
   public void convertMarcXmlToJsonRecordMulti() {
     String collection = "<collection>" + MARCXML1_SAMPLE + MARCXML2_SAMPLE + "</collection>";
     Throwable t = Assert.assertThrows(IllegalArgumentException.class,
-        () ->XmlJsonUtil.convertMarcXmlToJson(collection));
+        () -> MarcXmlToJson.convert(collection));
     Assert.assertEquals("can not handle multiple records", t.getMessage());
   }
 
@@ -271,12 +271,12 @@ public class XmlJsonUtilTest {
   public void convertMarcXmlToJsonRecordMissing()  {
     String record = "<collection/>";
     Throwable t = Assert.assertThrows(IllegalArgumentException.class,
-        () ->XmlJsonUtil.convertMarcXmlToJson(record));
+        () -> MarcXmlToJson.convert(record));
     Assert.assertEquals("No record element found", t.getMessage());
 
     String collection = "<collection><foo/></collection>";
     t = Assert.assertThrows(IllegalArgumentException.class,
-        () ->XmlJsonUtil.convertMarcXmlToJson(collection));
+        () -> MarcXmlToJson.convert(collection));
     Assert.assertEquals("Bad marcxml element: foo", t.getMessage());
   }
 

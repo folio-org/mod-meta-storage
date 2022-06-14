@@ -1,6 +1,7 @@
 package org.folio.metastorage.util;
 
 import static org.folio.metastorage.util.Constants.CODE_LABEL;
+import static org.folio.metastorage.util.Constants.COLLECTION_LABEL;
 import static org.folio.metastorage.util.Constants.CONTROLFIELD_LABEL;
 import static org.folio.metastorage.util.Constants.LEADER_LABEL;
 import static org.folio.metastorage.util.Constants.SUBFIELD_LABEL;
@@ -49,16 +50,15 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
   }
 
   void endElement() {
-    if (elem != null) {
-      String val = cdata.toString();
-      switch (elem) {
-        case LEADER_LABEL -> marc.put(LEADER_LABEL, val);
-        case CONTROLFIELD_LABEL -> fields.add(new JsonObject().put(tag, val));
-        case SUBFIELD_LABEL -> subFields.add(new JsonObject().put(code, val));
-        default -> { }
-      }
-      elem = null;
+    String val = cdata.toString();
+    if (LEADER_LABEL.equals(elem)) {
+      marc.put(LEADER_LABEL, val);
+    } else if (CONTROLFIELD_LABEL.equals(elem)) {
+      fields.add(new JsonObject().put(tag, val));
+    } else if (SUBFIELD_LABEL.equals(elem)) {
+      subFields.add(new JsonObject().put(code, val));
     }
+    elem = null;
     cdata.setLength(0);
   }
 
@@ -73,8 +73,6 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
         if (recordNo > 1) {
           throw new IllegalArgumentException("can not handle multiple records");
         }
-      } else if (LEADER_LABEL.equals(elem)) {
-        ;
       } else if (CONTROLFIELD_LABEL.equals(elem)) {
         tag = getAttribute(stream, TAG_LABEL);
       } else if (Constants.DATAFIELD_LABEL.equals(elem)) {
@@ -94,7 +92,7 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
         if (subFields == null) {
           throw new IllegalArgumentException("subfield without field");
         }
-      } else if (!Constants.COLLECTION_LABEL.equals(elem)) {
+      } else if (!COLLECTION_LABEL.equals(elem) && !LEADER_LABEL.equals(elem)) {
         throw new IllegalArgumentException("Bad marcxml element: " + elem);
       }
     } else if (event == XMLStreamConstants.END_ELEMENT) {
