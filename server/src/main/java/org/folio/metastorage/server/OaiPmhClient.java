@@ -392,9 +392,6 @@ public class OaiPmhClient {
     String value;
   }
 
-  // RES ~ 4 GB  41304 records, 261,516,839 bytes
-  // RES  ~5 GB  25120 records, 148,344,550 bytes
-  // RES 8.4 GB 126026 records, 710,170,658 bytes
   void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
     JsonObject config = job.getJsonObject(CONFIG_LITERAL);
     log.info("client send request");

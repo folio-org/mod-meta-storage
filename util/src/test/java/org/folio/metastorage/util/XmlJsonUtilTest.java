@@ -86,7 +86,7 @@ public class XmlJsonUtilTest {
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT && "b".equals(xmlStreamReader.getLocalName())) {
-        docs.add(XmlJsonUtil.getSubDocument(event, xmlStreamReader));
+        docs.add(SubDocument.get(event, xmlStreamReader));
       }
     }
     Assert.assertEquals(2, docs.size());
@@ -109,7 +109,7 @@ public class XmlJsonUtilTest {
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT && "record".equals(xmlStreamReader.getLocalName())) {
-        docs.add(XmlJsonUtil.getSubDocument(event, xmlStreamReader));
+        docs.add(SubDocument.get(event, xmlStreamReader));
       }
     }
     Assert.assertEquals(2, docs.size());
@@ -129,7 +129,7 @@ public class XmlJsonUtilTest {
     xmlStreamReader.next();
     Assert.assertTrue(xmlStreamReader.hasNext());
     event = xmlStreamReader.next();
-    Assert.assertNull(XmlJsonUtil.getSubDocument(event, xmlStreamReader));
+    Assert.assertNull(SubDocument.get(event, xmlStreamReader));
   }
 
   @Test
@@ -140,7 +140,7 @@ public class XmlJsonUtilTest {
     XMLInputFactory factory = XMLInputFactory.newInstance();
     XMLStreamReader xmlStreamReader = factory.createXMLStreamReader(stream);
     int event = xmlStreamReader.next();
-    Assert.assertEquals(sub, XmlJsonUtil.getSubDocument(event, xmlStreamReader));
+    Assert.assertEquals(sub, SubDocument.get(event, xmlStreamReader));
   }
 
   @Test
@@ -152,7 +152,7 @@ public class XmlJsonUtilTest {
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT && "record".equals(xmlStreamReader.getLocalName())) {
-        String doc = XmlJsonUtil.getSubDocument(event, xmlStreamReader);
+        String doc = SubDocument.get(event, xmlStreamReader);
         if (doc == null) {
           break;
         }
@@ -179,7 +179,7 @@ public class XmlJsonUtilTest {
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT && "record".equals(xmlStreamReader.getLocalName())) {
-        String doc = XmlJsonUtil.getSubDocument(event, xmlStreamReader);
+        String doc = SubDocument.get(event, xmlStreamReader);
         if (doc == null) {
           break;
         }
@@ -504,7 +504,7 @@ public class XmlJsonUtilTest {
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT && "record".equals(xmlStreamReader.getLocalName())) {
-        String doc = XmlJsonUtil.getSubDocument(event, xmlStreamReader);
+        String doc = SubDocument.get(event, xmlStreamReader);
         if (doc == null) {
           break;
         }

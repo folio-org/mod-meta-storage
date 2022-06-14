@@ -35,6 +35,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.folio.metastorage.util.AsyncCodec;
 import org.folio.metastorage.util.SourceId;
+import org.folio.metastorage.util.SubDocument;
 import org.folio.metastorage.util.XmlJsonUtil;
 import org.folio.okapi.common.GenericCompositeFuture;
 import org.folio.okapi.common.XOkapiHeaders;
@@ -239,7 +240,7 @@ public class Client {
 
     public String parseNext() throws IOException {
       try {
-        return XmlJsonUtil.getSubDocument(xmlEvent, xmlReader);
+        return SubDocument.get(xmlEvent, xmlReader);
       } catch (XMLStreamException xse) {
         throw new IOException(xse);
       }
