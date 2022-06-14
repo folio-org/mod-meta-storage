@@ -399,8 +399,9 @@ public class OaiPmhClient {
       addQueryParameterFromConfig(enc, config, "metadataPrefix");
     }
     addQueryParameterFromParams(enc, config.getJsonObject("params"));
-    log.info("client send request {}", enc.toString());
-    requestOptions.setAbsoluteURI(enc.toString());
+    String absoluteUri = enc.toString();
+    log.info("client send request {}", absoluteUri);
+    requestOptions.setAbsoluteURI(absoluteUri);
 
     storage.getAvailableMatchConfigs(connection)
         .compose(matchKeyConfigs ->
@@ -411,7 +412,8 @@ public class OaiPmhClient {
                   job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
                   if (res.statusCode() != 200) {
                     job.put(STATUS_LITERAL, IDLE_LITERAL);
-                    job.put("errors", "OAI server returned HTTP status " + res.statusCode());
+                    job.put("errors", "OAI server for request " + absoluteUri
+                        + " returned HTTP status " + res.statusCode());
                     return updateJob(storage, connection, id, job)
                         .compose(x -> Future.failedFuture("stopping due to HTTP status error"));
                   }
