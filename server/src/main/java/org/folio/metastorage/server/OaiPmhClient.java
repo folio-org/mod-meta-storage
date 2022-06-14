@@ -1,5 +1,6 @@
 package org.folio.metastorage.server;
 
+import io.netty.handler.codec.http.QueryStringEncoder;
 import io.vertx.core.Future;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
@@ -17,8 +18,6 @@ import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowIterator;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.Tuple;
-import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -342,27 +341,21 @@ public class OaiPmhClient {
     return headers;
   }
 
-  static void appendParameter(StringBuilder url, String key, String value) {
-    url.append('&');
-    url.append(key);
-    url.append('=');
-    url.append(URLEncoder.encode(value, StandardCharsets.UTF_8)); // TODO percent encoding
-  }
-
-  static boolean addQueryParameterFromConfig(StringBuilder url, JsonObject config, String key) {
+  static boolean addQueryParameterFromConfig(QueryStringEncoder enc,
+      JsonObject config, String key) {
     String value = config.getString(key);
     if (value == null) {
       return false;
     }
-    appendParameter(url, key, value);
+    enc.addParam(key, value);
     return true;
   }
 
-  static void addQueryParameterFromParams(StringBuilder url, JsonObject params) {
+  static void addQueryParameterFromParams(QueryStringEncoder enc, JsonObject params) {
     if (params != null) {
       params.forEach(e -> {
         if (e.getValue() instanceof String value) {
-          appendParameter(url, e.getKey(), value);
+          enc.addParam(e.getKey(), value);
         } else {
           throw new IllegalArgumentException("params " + e.getKey() + " value must be string");
         }
@@ -372,7 +365,7 @@ public class OaiPmhClient {
 
   Future<Void> ingestRecord(
       Storage storage, OaiRecord<JsonObject> oaiRecord,
-      SourceId sourceId, JsonArray matchkeyconfigs) {
+      SourceId sourceId, JsonArray matchKeyConfigs) {
     try {
       JsonObject globalRecord = new JsonObject();
       globalRecord.put("localId", oaiRecord.getIdentifier());
@@ -381,32 +374,33 @@ public class OaiPmhClient {
       } else {
         globalRecord.put("payload", new JsonObject().put("marc", oaiRecord.getMetadata()));
       }
-      return storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchkeyconfigs);
+      return storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchKeyConfigs);
     } catch (Exception e) {
       log.error("{}", e.getMessage(), e);
       return Future.failedFuture(e);
     }
   }
 
-  class Datestamp {
+  static class Datestamp {
     String value;
   }
 
   void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
     JsonObject config = job.getJsonObject(CONFIG_LITERAL);
-    log.info("client send request");
     RequestOptions requestOptions = new RequestOptions();
     requestOptions.setMethod(HttpMethod.GET);
     requestOptions.setHeaders(getHttpHeaders(config));
-    StringBuilder url = new StringBuilder(config.getString("url") + "?" + "verb=ListRecords");
-    if (!addQueryParameterFromConfig(url, config, RESUMPTION_TOKEN_LITERAL)) {
-      addQueryParameterFromConfig(url, config, "from");
-      addQueryParameterFromConfig(url, config, "until");
-      addQueryParameterFromConfig(url, config, "set");
-      addQueryParameterFromConfig(url, config, "metadataPrefix");
+    QueryStringEncoder enc = new QueryStringEncoder(config.getString("url"));
+    enc.addParam("verb", "ListRecords");
+    if (!addQueryParameterFromConfig(enc, config, RESUMPTION_TOKEN_LITERAL)) {
+      addQueryParameterFromConfig(enc, config, "from");
+      addQueryParameterFromConfig(enc, config, "until");
+      addQueryParameterFromConfig(enc, config, "set");
+      addQueryParameterFromConfig(enc, config, "metadataPrefix");
     }
-    addQueryParameterFromParams(url, config.getJsonObject("params"));
-    requestOptions.setAbsoluteURI(url.toString());
+    addQueryParameterFromParams(enc, config.getJsonObject("params"));
+    log.info("client send request {}", enc.toString());
+    requestOptions.setAbsoluteURI(enc.toString());
 
     storage.getAvailableMatchConfigs(connection)
         .compose(matchKeyConfigs ->
@@ -459,7 +453,7 @@ public class OaiPmhClient {
                     } else {
                       config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
                       log.info("continuing with resumptionToken");
-                      updateJob(storage, connection, id, job).onComplete(promise::handle);
+                      updateJob(storage, connection, id, job).onComplete(promise);
                     }
                   });
                   return promise.future();
