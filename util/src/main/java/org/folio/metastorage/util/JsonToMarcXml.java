@@ -1,11 +1,14 @@
 package org.folio.metastorage.util;
 
+import static org.folio.metastorage.util.Constants.CODE_LABEL;
 import static org.folio.metastorage.util.Constants.CONTROLFIELD_LABEL;
+import static org.folio.metastorage.util.Constants.DATAFIELD_LABEL;
 import static org.folio.metastorage.util.Constants.FIELDS_LABEL;
 import static org.folio.metastorage.util.Constants.LEADER_LABEL;
 import static org.folio.metastorage.util.Constants.RECORD_LABEL;
 import static org.folio.metastorage.util.Constants.SUBFIELDS_LABEL;
 import static org.folio.metastorage.util.Constants.SUBFIELD_LABEL;
+import static org.folio.metastorage.util.Constants.TAG_LABEL;
 import static org.folio.metastorage.util.XmlJsonUtil.encodeXmlText;
 
 import io.vertx.core.json.JsonArray;
@@ -34,14 +37,14 @@ public final class JsonToMarcXml {
         control.fieldNames().forEach(f -> {
           Object fieldValue = control.getValue(f);
           if (fieldValue instanceof String string) {
-            s.append("  <" + CONTROLFIELD_LABEL + " tag=\"");
+            s.append("  <" + CONTROLFIELD_LABEL + " " + TAG_LABEL + "=\"");
             s.append(encodeXmlText(f));
             s.append("\">");
             s.append(encodeXmlText(string));
-            s.append("</controlfield>\n");
+            s.append("</" + CONTROLFIELD_LABEL + ">\n");
           }
           if (fieldValue instanceof JsonObject fieldObject) {
-            s.append("  <datafield tag=\"");
+            s.append("  <" + DATAFIELD_LABEL + " " + TAG_LABEL + "=\"");
             s.append(encodeXmlText(f));
             for (int j = 1; j <= 9; j++) { // ISO 2709 allows more than 2 indicators
               String indicatorValue = fieldObject.getString("ind" + j);
@@ -56,12 +59,12 @@ public final class JsonToMarcXml {
               JsonObject subfieldObject = subfields.getJsonObject(j);
               subfieldObject.fieldNames().forEach(sub -> {
                 s.append("    <" + SUBFIELD_LABEL);
-                s.append(" code=\"" + encodeXmlText(sub) + "\">");
+                s.append(" " + CODE_LABEL + "=\"" + encodeXmlText(sub) + "\">");
                 s.append(encodeXmlText(subfieldObject.getString(sub)));
                 s.append("</" + SUBFIELD_LABEL + ">\n");
               });
             }
-            s.append("  </datafield>\n");
+            s.append("  </" + DATAFIELD_LABEL + ">\n");
           }
         });
       }
