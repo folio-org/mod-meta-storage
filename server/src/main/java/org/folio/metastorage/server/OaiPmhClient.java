@@ -5,6 +5,7 @@ import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpClient;
+import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.RequestOptions;
 import io.vertx.core.json.JsonArray;
@@ -413,7 +414,7 @@ public class OaiPmhClient {
     storage.getAvailableMatchConfigs(connection)
         .compose(matchKeyConfigs ->
             httpClient.request(requestOptions)
-                .compose(req -> req.send())
+                .compose(HttpClientRequest::send)
                 .compose(res -> {
                   log.info("client handle response");
                   job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
@@ -443,7 +444,7 @@ public class OaiPmhClient {
                                 .onComplete(x -> xmlParser.resume());
                           },
                           metadataParser);
-                  oaiParserStream.exceptionHandler(e -> promise.fail(e));
+                  oaiParserStream.exceptionHandler(promise::fail);
                   xmlParser.endHandler(end -> {
                     job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL) + cnt.get());
                     log.info("ingested {} records", cnt.get());
@@ -461,7 +462,7 @@ public class OaiPmhClient {
                     } else {
                       config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
                       log.info("continuing with resumptionToken");
-                      updateJob(storage, connection, id, job).onComplete(x -> promise.handle(x));
+                      updateJob(storage, connection, id, job).onComplete(promise::handle);
                     }
                   });
                   return promise.future();
