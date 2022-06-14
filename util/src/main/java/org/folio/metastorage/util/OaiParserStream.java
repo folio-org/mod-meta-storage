@@ -22,17 +22,25 @@ public class OaiParserStream<T> {
 
   int metadataLevel;
 
-  void endElement() {
-    if (elem != null) {
-      String val = cdata.toString();
-      switch (elem) {
-        case "resumptionToken" -> resumptionToken = val;
-        case "datestamp" -> lastRecord.datestamp = val;
-        case "identifier" -> lastRecord.identifier = val;
-      }
-      elem = null;
+  Consumer<String> handleText;
+
+  int textLevel;
+
+  void setHandleText(Consumer<String> handle) {
+    cdata.setLength(0);
+    textLevel = level;
+    handleText = handle;
+  }
+
+  void checkHandleText() {
+    if (level >= textLevel) {
+      return;
+    }
+    if (handleText != null) {
+      handleText.accept(cdata.toString());
     }
     cdata.setLength(0);
+    handleText = null;
   }
 
   /**
@@ -69,7 +77,6 @@ public class OaiParserStream<T> {
           if (metadataLevel != 0 && level > metadataLevel) {
             metadataParser.handle(xmlStreamReader);
           } else {
-            endElement();
             elem = xmlStreamReader.getLocalName();
             if (level == 3 && ("record".equals(elem) || "header".equals(elem))) {
               if (lastRecord != null) {
@@ -85,9 +92,14 @@ public class OaiParserStream<T> {
                   lastRecord.deleted = true;
                 }
               }
-            }
-            if ("metadata".equals(elem)) {
+            } else if ("metadata".equals(elem)) {
               metadataLevel = level;
+            } else if ("resumptionToken".equals(elem)) {
+              setHandleText(text -> resumptionToken = text);
+            } else if ("datestamp".equals(elem)) {
+              setHandleText(text -> lastRecord.datestamp = text);
+            } else if ("identifier".equals(elem)) {
+              setHandleText(text -> lastRecord.identifier = text);
             }
           }
         } else if (event == XMLStreamConstants.END_ELEMENT) {
@@ -100,7 +112,7 @@ public class OaiParserStream<T> {
               metadataLevel = 0;
             }
           } else {
-            endElement();
+            checkHandleText();
           }
         } else if (metadataLevel != 0 && level > metadataLevel) {
           metadataParser.handle(xmlStreamReader);

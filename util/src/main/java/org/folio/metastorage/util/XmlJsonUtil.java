@@ -1,5 +1,13 @@
 package org.folio.metastorage.util;
 
+import static org.folio.metastorage.util.Constants.COLLECTION_LABEL;
+import static org.folio.metastorage.util.Constants.CONTROLFIELD_LABEL;
+import static org.folio.metastorage.util.Constants.FIELDS_LABEL;
+import static org.folio.metastorage.util.Constants.LEADER_LABEL;
+import static org.folio.metastorage.util.Constants.RECORD_LABEL;
+import static org.folio.metastorage.util.Constants.SUBFIELDS_LABEL;
+import static org.folio.metastorage.util.Constants.SUBFIELD_LABEL;
+
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
@@ -22,18 +30,9 @@ import javax.xml.transform.stream.StreamSource;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
+
 public final class XmlJsonUtil {
   private static final Logger LOGGER = LogManager.getLogger(XmlJsonUtil.class);
-  private static final String COLLECTION_LABEL = "collection";
-  private static final String RECORD_LABEL = "record";
-  private static final String LEADER_LABEL = "leader";
-  private static final String DATAFIELD_LABEL = "datafield";
-  private static final String CONTROLFIELD_LABEL = "controlfield";
-  private static final String TAG_LABEL = "tag";
-  private static final String SUBFIELD_LABEL = "subfield";
-  private static final String SUBFIELDS_LABEL = "subfields";
-  private static final String CODE_LABEL = "code";
-  private static final String FIELDS_LABEL = "fields";
 
   private XmlJsonUtil() {
     throw new UnsupportedOperationException("XmlJsonUtil");
@@ -94,26 +93,6 @@ public final class XmlJsonUtil {
     return s.toString();
   }
 
-  static String getCdata(XMLStreamReader xmlStreamReader)
-      throws XMLStreamException {
-    int event = next(xmlStreamReader);
-    StringBuilder t = new StringBuilder();
-    while (event == XMLStreamConstants.CHARACTERS) {
-      t.append(xmlStreamReader.getText());
-      event = next(xmlStreamReader);
-    }
-    return t.toString();
-  }
-
-  static String getAttribute(XMLStreamReader xmlStreamReader, String name) {
-    for (int i = 0; i < xmlStreamReader.getAttributeCount(); i++) {
-      if (name.equals(xmlStreamReader.getAttributeLocalName(i))) {
-        return xmlStreamReader.getAttributeValue(i);
-      }
-    }
-    return null;
-  }
-
   /**
    * Convert MARCXML to MARC-in-JSON from String.
    * @param marcXml MARCXML XML string
@@ -127,6 +106,7 @@ public final class XmlJsonUtil {
         factory.createXMLStreamReader(new ByteArrayInputStream(marcXml.getBytes()));
     return convertMarcXmlToJson(xmlStreamReader);
   }
+
 
   /**
    * Convert MARCXML to MARC-in-JSON from XMLStreamReader.
@@ -143,66 +123,22 @@ public final class XmlJsonUtil {
 
   static JsonObject convertMarcXmlToJsonInt(XMLStreamReader xmlStreamReader)
       throws XMLStreamException {
+
+    OaiMetadataParserMarcInJson parserMarcInJson = new OaiMetadataParserMarcInJson();
     int level = 0;
-    int recordNo = 0;
-    JsonObject marc = new JsonObject();
-    JsonArray fields = new JsonArray();
-    JsonArray subFields = null;
-    xmlStreamReader.next();
     while (xmlStreamReader.hasNext()) {
-      int event = xmlStreamReader.getEventType();
-      if (event == XMLStreamConstants.START_ELEMENT) {
+      int e = xmlStreamReader.next();
+      if (XMLStreamConstants.START_ELEMENT == e) {
         level++;
-        String elem = xmlStreamReader.getLocalName();
-        if (RECORD_LABEL.equals(elem)) {
-          recordNo++;
-          if (recordNo > 1) {
-            throw new IllegalArgumentException("can not handle multiple records");
-          }
-        } else if (LEADER_LABEL.equals(elem)) {
-          marc.put(LEADER_LABEL, getCdata(xmlStreamReader));
-          continue;
-        } else if (CONTROLFIELD_LABEL.equals(elem)) {
-          String tag = getAttribute(xmlStreamReader, TAG_LABEL);
-          fields.add(new JsonObject().put(tag, getCdata(xmlStreamReader)));
-          continue;
-        } else if (DATAFIELD_LABEL.equals(elem)) {
-          JsonObject field = new JsonObject();
-          for (int j = 1; j <= 9; j++) { // ISO 2709 allows more than 2 indicators
-            String ind = getAttribute(xmlStreamReader, "ind" + j);
-            if (ind != null) {
-              field.put("ind" + j, ind);
-            }
-          }
-          subFields = new JsonArray();
-          field.put(SUBFIELDS_LABEL, subFields);
-          String tag = getAttribute(xmlStreamReader, TAG_LABEL);
-          fields.add(new JsonObject().put(tag, field));
-        } else if (SUBFIELD_LABEL.equals(elem)) {
-          String code = getAttribute(xmlStreamReader, CODE_LABEL);
-          if (subFields == null) {
-            throw new IllegalArgumentException("subfield without field");
-          }
-          subFields.add(new JsonObject().put(code, getCdata(xmlStreamReader)));
-          continue;
-        } else if (!COLLECTION_LABEL.equals(elem)) {
-          throw new IllegalArgumentException("Bad marcxml element: " + elem);
-        }
-      } else if (event == XMLStreamConstants.END_ELEMENT) {
+      } else if (XMLStreamConstants.END_ELEMENT == e) {
         level--;
-        if (level <= 0) {
+        if (level == 0) {
           break;
         }
       }
-      xmlStreamReader.next();
+      parserMarcInJson.handle(xmlStreamReader);
     }
-    if (recordNo == 0) {
-      throw new IllegalArgumentException("No record element found");
-    }
-    if (!fields.isEmpty()) {
-      marc.put(FIELDS_LABEL, fields);
-    }
-    return marc;
+    return parserMarcInJson.result();
   }
 
   static String getXmlStreamerEventInfo(int event, XMLStreamReader xmlStreamReader) {
