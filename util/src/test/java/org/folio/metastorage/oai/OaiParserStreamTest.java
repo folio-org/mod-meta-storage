@@ -7,6 +7,8 @@ import io.vertx.core.file.OpenOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
+import org.folio.metastorage.util.XmlMetadataParserMarcInJson;
+import org.folio.metastorage.util.XmlMetadataStreamParser;
 import org.folio.metastorage.util.XmlParser;
 import org.junit.After;
 import org.junit.Before;
@@ -39,7 +41,7 @@ public class OaiParserStreamTest {
   Future<OaiParserStream<JsonObject>> parseOai(String fname, Consumer<OaiRecord<JsonObject>> recordHandler) {
     return vertx.fileSystem().open(fname, new OpenOptions()).compose(asyncFile -> {
       XmlParser xmlParser = XmlParser.newParser(asyncFile);
-      OaiMetadataParser<JsonObject> metadataParser = new OaiMetadataParserMarcInJson();
+      XmlMetadataStreamParser<JsonObject> metadataParser = new XmlMetadataParserMarcInJson();
       OaiParserStream<JsonObject> oaiParserStream = new OaiParserStream<>(xmlParser, recordHandler, metadataParser);
       Promise<OaiParserStream<JsonObject>> promise = Promise.promise();
       oaiParserStream.exceptionHandler(e -> promise.tryFail(e));

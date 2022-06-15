@@ -1,19 +1,22 @@
 package org.folio.metastorage.util;
 
-import static org.folio.metastorage.util.Constants.CODE_LABEL;
-import static org.folio.metastorage.util.Constants.CONTROLFIELD_LABEL;
-import static org.folio.metastorage.util.Constants.DATAFIELD_LABEL;
-import static org.folio.metastorage.util.Constants.FIELDS_LABEL;
-import static org.folio.metastorage.util.Constants.LEADER_LABEL;
-import static org.folio.metastorage.util.Constants.RECORD_LABEL;
-import static org.folio.metastorage.util.Constants.SUBFIELDS_LABEL;
-import static org.folio.metastorage.util.Constants.SUBFIELD_LABEL;
-import static org.folio.metastorage.util.Constants.TAG_LABEL;
-import static org.folio.metastorage.util.XmlJsonUtil.encodeXmlText;
+import static org.folio.metastorage.util.EncodeXmlText.encodeXmlText;
+import static org.folio.metastorage.util.MarcConstants.CODE_LABEL;
+import static org.folio.metastorage.util.MarcConstants.CONTROLFIELD_LABEL;
+import static org.folio.metastorage.util.MarcConstants.DATAFIELD_LABEL;
+import static org.folio.metastorage.util.MarcConstants.FIELDS_LABEL;
+import static org.folio.metastorage.util.MarcConstants.LEADER_LABEL;
+import static org.folio.metastorage.util.MarcConstants.RECORD_LABEL;
+import static org.folio.metastorage.util.MarcConstants.SUBFIELDS_LABEL;
+import static org.folio.metastorage.util.MarcConstants.SUBFIELD_LABEL;
+import static org.folio.metastorage.util.MarcConstants.TAG_LABEL;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 
+/**
+ * MARC-in-JSON to MARCXML conversion.
+ */
 public final class JsonToMarcXml {
 
   private JsonToMarcXml() { }

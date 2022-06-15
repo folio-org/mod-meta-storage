@@ -21,15 +21,15 @@ import io.vertx.sqlclient.Tuple;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.folio.metastorage.oai.OaiMetadataParser;
-import org.folio.metastorage.oai.OaiMetadataParserMarcInJson;
 import org.folio.metastorage.oai.OaiParserStream;
 import org.folio.metastorage.oai.OaiRecord;
 import org.folio.metastorage.util.SourceId;
+import org.folio.metastorage.util.XmlMetadataParserMarcInJson;
+import org.folio.metastorage.util.XmlMetadataStreamParser;
 import org.folio.metastorage.util.XmlParser;
 import org.folio.okapi.common.HttpResponse;
 
-public class OaiPmhClient {
+public class OaiPmhClientService {
 
   Vertx vertx;
 
@@ -49,9 +49,9 @@ public class OaiPmhClient {
 
   private static final String TOTAL_REQUESTS_LITERAL = "totalRequests";
 
-  private static final Logger log = LogManager.getLogger(OaiPmhClient.class);
+  private static final Logger log = LogManager.getLogger(OaiPmhClientService.class);
 
-  public OaiPmhClient(Vertx vertx) {
+  public OaiPmhClientService(Vertx vertx) {
     this.vertx = vertx;
     this.httpClient = vertx.createHttpClient();
   }
@@ -419,7 +419,8 @@ public class OaiPmhClient {
                   }
                   XmlParser xmlParser = XmlParser.newParser(res);
                   Promise<Void> promise = Promise.promise();
-                  OaiMetadataParser<JsonObject> metadataParser = new OaiMetadataParserMarcInJson();
+                  XmlMetadataStreamParser<JsonObject> metadataParser
+                      = new XmlMetadataParserMarcInJson();
                   SourceId sourceId = new SourceId(config.getString("sourceId"));
                   Datestamp newestDatestamp = new Datestamp();
                   AtomicInteger cnt = new AtomicInteger();

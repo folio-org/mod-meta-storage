@@ -6,8 +6,10 @@ import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
-import org.folio.metastorage.oai.OaiMetadataParserMarcInJson;
 
+/**
+ * MARCXML to MARC-in-JSON conversion.
+ */
 public final class MarcXmlToJson {
 
   private MarcXmlToJson() { }
@@ -33,7 +35,7 @@ public final class MarcXmlToJson {
    */
   public static JsonObject convert(XMLStreamReader xmlStreamReader) {
     try {
-      OaiMetadataParserMarcInJson parserMarcInJson = new OaiMetadataParserMarcInJson();
+      XmlMetadataParserMarcInJson parserMarcInJson = new XmlMetadataParserMarcInJson();
       int level = 0;
       while (xmlStreamReader.hasNext()) {
         int e = xmlStreamReader.next();

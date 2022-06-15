@@ -1,19 +1,21 @@
-package org.folio.metastorage.oai;
+package org.folio.metastorage.util;
 
-import static org.folio.metastorage.util.Constants.CODE_LABEL;
-import static org.folio.metastorage.util.Constants.COLLECTION_LABEL;
-import static org.folio.metastorage.util.Constants.CONTROLFIELD_LABEL;
-import static org.folio.metastorage.util.Constants.LEADER_LABEL;
-import static org.folio.metastorage.util.Constants.SUBFIELD_LABEL;
-import static org.folio.metastorage.util.Constants.TAG_LABEL;
+import static org.folio.metastorage.util.MarcConstants.CODE_LABEL;
+import static org.folio.metastorage.util.MarcConstants.COLLECTION_LABEL;
+import static org.folio.metastorage.util.MarcConstants.CONTROLFIELD_LABEL;
+import static org.folio.metastorage.util.MarcConstants.LEADER_LABEL;
+import static org.folio.metastorage.util.MarcConstants.SUBFIELD_LABEL;
+import static org.folio.metastorage.util.MarcConstants.TAG_LABEL;
 
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamReader;
-import org.folio.metastorage.util.Constants;
 
-public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject> {
+/**
+ * Produce MARC-in-JSON from streaming XML.
+ */
+public class XmlMetadataParserMarcInJson implements XmlMetadataStreamParser<JsonObject> {
 
   JsonObject marc = new JsonObject();
 
@@ -68,14 +70,14 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
     if (event == XMLStreamConstants.START_ELEMENT) {
       endElement();
       elem = stream.getLocalName();
-      if (Constants.RECORD_LABEL.equals(elem)) {
+      if (MarcConstants.RECORD_LABEL.equals(elem)) {
         recordNo++;
         if (recordNo > 1) {
           throw new IllegalArgumentException("can not handle multiple records");
         }
       } else if (CONTROLFIELD_LABEL.equals(elem)) {
         tag = getAttribute(stream, TAG_LABEL);
-      } else if (Constants.DATAFIELD_LABEL.equals(elem)) {
+      } else if (MarcConstants.DATAFIELD_LABEL.equals(elem)) {
         JsonObject field = new JsonObject();
         for (int j = 1; j <= 9; j++) { // ISO 2709 allows more than 2 indicators
           String ind = getAttribute(stream, "ind" + j);
@@ -84,7 +86,7 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
           }
         }
         subFields = new JsonArray();
-        field.put(Constants.SUBFIELDS_LABEL, subFields);
+        field.put(MarcConstants.SUBFIELDS_LABEL, subFields);
         tag = getAttribute(stream, TAG_LABEL);
         fields.add(new JsonObject().put(tag, field));
       } else if (SUBFIELD_LABEL.equals(elem)) {
@@ -108,7 +110,7 @@ public class OaiMetadataParserMarcInJson implements OaiMetadataParser<JsonObject
       throw new IllegalArgumentException("No record element found");
     }
     if (!fields.isEmpty()) {
-      marc.put(Constants.FIELDS_LABEL, fields);
+      marc.put(MarcConstants.FIELDS_LABEL, fields);
     }
     return marc;
   }

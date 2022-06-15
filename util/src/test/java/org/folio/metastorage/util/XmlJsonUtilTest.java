@@ -16,9 +16,11 @@ import javax.xml.transform.TransformerException;
 import javax.xml.transform.TransformerFactory;
 import javax.xml.transform.stream.StreamResult;
 import javax.xml.transform.stream.StreamSource;
-import org.folio.okapi.testing.UtilityClassTester;
 import org.junit.Assert;
 import org.junit.Test;
+
+import static org.folio.metastorage.util.IngestRecord.createIngestRecord;
+import static org.folio.metastorage.util.InventoryToXml.inventoryXmlToJson;
 
 public class XmlJsonUtilTest {
   static final String MARCXML1_SAMPLE =
@@ -86,7 +88,7 @@ public class XmlJsonUtilTest {
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT && "b".equals(xmlStreamReader.getLocalName())) {
-        docs.add(SubDocument.get(event, xmlStreamReader));
+        docs.add(XmlSerializer.get(event, xmlStreamReader));
       }
     }
     Assert.assertEquals(2, docs.size());
@@ -109,7 +111,7 @@ public class XmlJsonUtilTest {
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT && "record".equals(xmlStreamReader.getLocalName())) {
-        docs.add(SubDocument.get(event, xmlStreamReader));
+        docs.add(XmlSerializer.get(event, xmlStreamReader));
       }
     }
     Assert.assertEquals(2, docs.size());
@@ -129,7 +131,7 @@ public class XmlJsonUtilTest {
     xmlStreamReader.next();
     Assert.assertTrue(xmlStreamReader.hasNext());
     event = xmlStreamReader.next();
-    Assert.assertNull(SubDocument.get(event, xmlStreamReader));
+    Assert.assertNull(XmlSerializer.get(event, xmlStreamReader));
   }
 
   @Test
@@ -140,7 +142,7 @@ public class XmlJsonUtilTest {
     XMLInputFactory factory = XMLInputFactory.newInstance();
     XMLStreamReader xmlStreamReader = factory.createXMLStreamReader(stream);
     int event = xmlStreamReader.next();
-    Assert.assertEquals(sub, SubDocument.get(event, xmlStreamReader));
+    Assert.assertEquals(sub, XmlSerializer.get(event, xmlStreamReader));
   }
 
   @Test
@@ -152,7 +154,7 @@ public class XmlJsonUtilTest {
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT && "record".equals(xmlStreamReader.getLocalName())) {
-        String doc = SubDocument.get(event, xmlStreamReader);
+        String doc = XmlSerializer.get(event, xmlStreamReader);
         if (doc == null) {
           break;
         }
@@ -179,7 +181,7 @@ public class XmlJsonUtilTest {
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT && "record".equals(xmlStreamReader.getLocalName())) {
-        String doc = SubDocument.get(event, xmlStreamReader);
+        String doc = XmlSerializer.get(event, xmlStreamReader);
         if (doc == null) {
           break;
         }
@@ -287,68 +289,68 @@ public class XmlJsonUtilTest {
     XMLInputFactory factory = XMLInputFactory.newInstance();
     XMLStreamReader xmlStreamReader = factory.createXMLStreamReader(stream);
     int event = xmlStreamReader.next();
-    Assert.assertEquals("START a", XmlJsonUtil.getXmlStreamerEventInfo(event, xmlStreamReader));
+    Assert.assertEquals("START a", InventoryToXml.getXmlStreamerEventInfo(event, xmlStreamReader));
     event = xmlStreamReader.next();
-    Assert.assertEquals("CHARACTERS 'x'", XmlJsonUtil.getXmlStreamerEventInfo(event, xmlStreamReader));
+    Assert.assertEquals("CHARACTERS 'x'", InventoryToXml.getXmlStreamerEventInfo(event, xmlStreamReader));
     event = xmlStreamReader.next();
-    Assert.assertEquals("END a", XmlJsonUtil.getXmlStreamerEventInfo(event, xmlStreamReader));
+    Assert.assertEquals("END a", InventoryToXml.getXmlStreamerEventInfo(event, xmlStreamReader));
     event = xmlStreamReader.next();
-    Assert.assertEquals("8", XmlJsonUtil.getXmlStreamerEventInfo(event, xmlStreamReader));
+    Assert.assertEquals("8", InventoryToXml.getXmlStreamerEventInfo(event, xmlStreamReader));
   }
 
   @Test
-  public void inventoryXmlToJson() throws XMLStreamException {
+  public void testInventoryXmlToJson() throws XMLStreamException {
     Assert.assertThrows(javax.xml.stream.XMLStreamException.class,
-        () -> XmlJsonUtil.inventoryXmlToJson("hello"));
+        () -> inventoryXmlToJson("hello"));
 
-    Assert.assertEquals(new JsonObject().put("a", null), XmlJsonUtil.inventoryXmlToJson("<a/>"));
+    Assert.assertEquals(new JsonObject().put("a", null), inventoryXmlToJson("<a/>"));
 
     Assert.assertEquals(new JsonObject().put("a", "s"),
-        XmlJsonUtil.inventoryXmlToJson("<a>s</a>"));
+        inventoryXmlToJson("<a>s</a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonObject().put("b","s")),
-        XmlJsonUtil.inventoryXmlToJson("<a><b>s</b></a>"));
+        inventoryXmlToJson("<a><b>s</b></a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonObject().put("b","s")),
-        XmlJsonUtil.inventoryXmlToJson("<a> <b>s</b> </a>"));
+        inventoryXmlToJson("<a> <b>s</b> </a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonObject()
             .put("b", "s")
             .put("c", "t")
         ),
-        XmlJsonUtil.inventoryXmlToJson("<a> <b>s</b> <c>t</c> </a>"));
+        inventoryXmlToJson("<a> <b>s</b> <c>t</c> </a>"));
 
     Assert.assertEquals(new JsonObject()
             .put("a",
                 new JsonObject()
                     .put("b", null)
                     .put("c", null)),
-        XmlJsonUtil.inventoryXmlToJson("<a><b/> <c/> </a>"));
+        inventoryXmlToJson("<a><b/> <c/> </a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray()),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr/></a>"));
+        inventoryXmlToJson("<a><arr/></a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray()),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr>1</arr></a>"));
+        inventoryXmlToJson("<a><arr>1</arr></a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray().add("1")),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr><i>1</i></arr></a>"));
+        inventoryXmlToJson("<a><arr><i>1</i></arr></a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray().add("1")),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr><arr>1</arr></arr></a>"));
+        inventoryXmlToJson("<a><arr><arr>1</arr></arr></a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray().add(new JsonArray().add("1"))),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr><arr><arr><arr>1</arr></arr></arr></arr></a>"));
+        inventoryXmlToJson("<a><arr><arr><arr><arr>1</arr></arr></arr></arr></a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray().add(new JsonObject().put("x1","1").put("x2", "2"))),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr><i><x1>1</x1><x2>2</x2></i></arr></a>"));
+        inventoryXmlToJson("<a><arr><i><x1>1</x1><x2>2</x2></i></arr></a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray()
             .add(new JsonObject()
                 .put("t","1")
                 .put("u","2")
                 .put("v","3"))),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr><i><t>1</t><u>2</u><v>3</v></i></arr></a>"));
+        inventoryXmlToJson("<a><arr><i><t>1</t><u>2</u><v>3</v></i></arr></a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray()
             .add(new JsonObject()
@@ -357,20 +359,20 @@ public class XmlJsonUtilTest {
                 .put("u","2"))
             .add(new JsonObject()
                 .put("v","3"))),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr><i><t>1</t></i><i><u>2</u></i><i><v>3</v></i></arr></a>"));
+        inventoryXmlToJson("<a><arr><i><t>1</t></i><i><u>2</u></i><i><v>3</v></i></arr></a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray()
             .add("1")
             .add("2")
             .add("3")),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr><t>1</t><t>2</t><t>3</t></arr></a>"));
+        inventoryXmlToJson("<a><arr><t>1</t><t>2</t><t>3</t></arr></a>"));
 
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray()
             .add(new JsonArray()
                 .add(new JsonObject().put("b", "1"))
                 .add(new JsonObject().put("c", "2")))),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr><i><arr><i><b>1</b></i><i><c>2</c></i></arr></i></arr></a>"));
+        inventoryXmlToJson("<a><arr><i><arr><i><b>1</b></i><i><c>2</c></i></arr></i></arr></a>"));
 
     Assert.assertEquals(new JsonObject()
             .put("record",
@@ -378,7 +380,7 @@ public class XmlJsonUtilTest {
                     .put("a", new JsonObject()
                         .put("b", "1"))
                     .put("u", "3")),
-        XmlJsonUtil.inventoryXmlToJson(""
+        inventoryXmlToJson(""
             + "<record>"
             + " <a><b>1</b></a>\n"
             + " <u>3</u>\n"
@@ -391,7 +393,7 @@ public class XmlJsonUtilTest {
                     .put("a", new JsonArray()
                         .add(new JsonObject().put("b", "1")))
                     .put("c", "2")),
-        XmlJsonUtil.inventoryXmlToJson(""
+        inventoryXmlToJson(""
             + "<record>"
             + "<a>"
             + "<arr>"
@@ -408,7 +410,7 @@ public class XmlJsonUtilTest {
                     .put("a", new JsonArray()
                         .add(new JsonObject().put("b", "1")))
                     .put("c", "2")),
-        XmlJsonUtil.inventoryXmlToJson(""
+        inventoryXmlToJson(""
             + "<record>"
             + " <a>\n"
             + "   <arr>\n"
@@ -420,21 +422,21 @@ public class XmlJsonUtilTest {
         ));
 
     Throwable t = Assert.assertThrows(IllegalArgumentException.class,
-        () -> XmlJsonUtil.inventoryXmlToJson("<arr><a/></arr>"));
+        () -> inventoryXmlToJson("<arr><a/></arr>"));
     Assert.assertEquals("xmlToJsonObject not returning JsonObject", t.getMessage());
 
     Assert.assertEquals(new JsonObject().put("a", new JsonObject().put("b", null)),
-        XmlJsonUtil.inventoryXmlToJson("<a><original><a><b><c></c>1</b></a></original><b/></a>"));
+        inventoryXmlToJson("<a><original><a><b><c></c>1</b></a></original><b/></a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray()
             .add(new JsonObject().put("i", null))),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr><i><i/></i> </arr> </a>"));
+        inventoryXmlToJson("<a><arr><i><i/></i> </arr> </a>"));
 
     Assert.assertEquals(new JsonObject().put("a", new JsonArray()
             .add(new JsonObject().put("b", null))
             .add(new JsonObject().put("c", null))
         ),
-        XmlJsonUtil.inventoryXmlToJson("<a><arr><i><b/></i><original>x</original><i><c/></i></arr></a>"));
+        inventoryXmlToJson("<a><arr><i><b/></i><original>x</original><i><c/></i></arr></a>"));
   }
 
   @Test
@@ -444,18 +446,18 @@ public class XmlJsonUtilTest {
     {
       JsonObject inventoryPayload = new JsonObject();
       Throwable t = Assert.assertThrows(IllegalArgumentException.class,
-          () -> XmlJsonUtil.createIngestRecord(marcPayload, inventoryPayload));
+          () -> createIngestRecord(marcPayload, inventoryPayload));
       Assert.assertEquals("inventory xml: missing record property", t.getMessage());
     }
 
     {
       JsonObject inventoryPayload = new JsonObject().put("record", new JsonObject());
       Throwable t = Assert.assertThrows(IllegalArgumentException.class,
-          () -> XmlJsonUtil.createIngestRecord(marcPayload, inventoryPayload));
+          () -> createIngestRecord(marcPayload, inventoryPayload));
       Assert.assertEquals("inventory xml: missing record/localIdentifier string", t.getMessage());
     }
 
-    JsonObject ingest = XmlJsonUtil.createIngestRecord(marcPayload, new JsonObject()
+    JsonObject ingest = createIngestRecord(marcPayload, new JsonObject()
         .put("record", new JsonObject()
             .put("original", "2")
             .put("localIdentifier", "123")
@@ -468,7 +470,7 @@ public class XmlJsonUtilTest {
             .put("instance", new JsonObject().put("a", "b")),
         payload.getJsonObject("inventory"));
 
-    ingest = XmlJsonUtil.createIngestRecord(marcPayload, new JsonObject()
+    ingest = createIngestRecord(marcPayload, new JsonObject()
         .put("collection", new JsonObject()
             .put("record", new JsonObject()
                 .put("localIdentifier", "123")
@@ -504,11 +506,11 @@ public class XmlJsonUtilTest {
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT && "record".equals(xmlStreamReader.getLocalName())) {
-        String doc = SubDocument.get(event, xmlStreamReader);
+        String doc = XmlSerializer.get(event, xmlStreamReader);
         if (doc == null) {
           break;
         }
-        ingestRecords.add(XmlJsonUtil.createIngestRecord(doc, templates));
+        ingestRecords.add(createIngestRecord(doc, templates));
       }
     }
     Assert.assertEquals(10, ingestRecords.size());
@@ -532,7 +534,7 @@ public class XmlJsonUtilTest {
   @Test
   public void removeMarcField1() {
     JsonObject got = MARCJSON1_SAMPLE.copy();
-    XmlJsonUtil.removeMarcField(got, "999");
+    MarcInJsonUtil.removeMarcField(got, "999");
     JsonObject exp = MARCJSON1_SAMPLE.copy();
     Assert.assertEquals(exp, got);
   }
@@ -540,7 +542,7 @@ public class XmlJsonUtilTest {
   @Test
   public void removeMarcField2() {
     JsonObject got = MARCJSON2_SAMPLE.copy();
-    XmlJsonUtil.removeMarcField(got, "300");
+    MarcInJsonUtil.removeMarcField(got, "300");
     JsonObject exp = MARCJSON2_SAMPLE.copy();
     Assert.assertEquals(exp, got);
   }
@@ -548,7 +550,7 @@ public class XmlJsonUtilTest {
   @Test
   public void removeMarcField3() {
     JsonObject got = MARCJSON2_SAMPLE.copy();
-    XmlJsonUtil.removeMarcField(got, "245");
+    MarcInJsonUtil.removeMarcField(got, "245");
     JsonObject exp = MARCJSON2_SAMPLE.copy();
     exp.getJsonArray("fields").remove(2);
     Assert.assertEquals(exp, got);
@@ -557,9 +559,9 @@ public class XmlJsonUtilTest {
   @Test
   public void createMarcDataField1() {
     JsonObject got = MARCJSON1_SAMPLE.copy();
-    Assert.assertNull(XmlJsonUtil.lookupMarcDataField(got, "245", "1", "2"));
-    JsonArray ar = XmlJsonUtil.createMarcDataField(got, "245", "1", "2");
-    Assert.assertEquals(ar, XmlJsonUtil.lookupMarcDataField(got, "245", "1", "2"));
+    Assert.assertNull(MarcInJsonUtil.lookupMarcDataField(got, "245", "1", "2"));
+    JsonArray ar = MarcInJsonUtil.createMarcDataField(got, "245", "1", "2");
+    Assert.assertEquals(ar, MarcInJsonUtil.lookupMarcDataField(got, "245", "1", "2"));
     JsonObject exp = MARCJSON1_SAMPLE.copy();
     exp.put("fields", new JsonArray().add(new JsonObject()
         .put("245", new JsonObject()
@@ -573,14 +575,14 @@ public class XmlJsonUtilTest {
   @Test
   public void createMarcDataField2() {
     JsonObject got = MARCJSON2_SAMPLE.copy();
-    JsonArray s200 = XmlJsonUtil.createMarcDataField(got, "200", "1", "2");
-    Assert.assertEquals(s200, XmlJsonUtil.lookupMarcDataField(got, "200", "1", "2"));
-    Assert.assertEquals(s200, XmlJsonUtil.lookupMarcDataField(got, "200", null, "2"));
-    Assert.assertEquals(s200, XmlJsonUtil.lookupMarcDataField(got, "200", "1", null));
-    Assert.assertNull(XmlJsonUtil.lookupMarcDataField(got, "200", "2", null));
-    Assert.assertNull(XmlJsonUtil.lookupMarcDataField(got, "200", "1", "3"));
-    Assert.assertNull(XmlJsonUtil.lookupMarcDataField(got, "201", "1", "2"));
-    XmlJsonUtil.createMarcDataField(got, "999", " ", " ");
+    JsonArray s200 = MarcInJsonUtil.createMarcDataField(got, "200", "1", "2");
+    Assert.assertEquals(s200, MarcInJsonUtil.lookupMarcDataField(got, "200", "1", "2"));
+    Assert.assertEquals(s200, MarcInJsonUtil.lookupMarcDataField(got, "200", null, "2"));
+    Assert.assertEquals(s200, MarcInJsonUtil.lookupMarcDataField(got, "200", "1", null));
+    Assert.assertNull(MarcInJsonUtil.lookupMarcDataField(got, "200", "2", null));
+    Assert.assertNull(MarcInJsonUtil.lookupMarcDataField(got, "200", "1", "3"));
+    Assert.assertNull(MarcInJsonUtil.lookupMarcDataField(got, "201", "1", "2"));
+    MarcInJsonUtil.createMarcDataField(got, "999", " ", " ");
     JsonObject exp = MARCJSON2_SAMPLE.copy();
     exp.getJsonArray("fields")
         .add(2, new JsonObject()
@@ -597,10 +599,4 @@ public class XmlJsonUtilTest {
             ));
     Assert.assertEquals(exp, got);
   }
-
-  @Test
-  public void isUtilityClass() {
-    UtilityClassTester.assertUtilityClass(XmlJsonUtil.class);
-  }
-
 }

@@ -5,6 +5,7 @@ import io.vertx.core.streams.ReadStream;
 import java.util.function.Consumer;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamReader;
+import org.folio.metastorage.util.XmlMetadataStreamParser;
 
 public class OaiParserStream<T> {
 
@@ -63,7 +64,7 @@ public class OaiParserStream<T> {
    * @param metadataParser metadata parser
    */
   public OaiParserStream(ReadStream<XMLStreamReader> stream, Consumer<OaiRecord<T>> recordHandler,
-      OaiMetadataParser<T> metadataParser) {
+      XmlMetadataStreamParser<T> metadataParser) {
     stream.handler(xmlStreamReader -> {
       try {
         int event = xmlStreamReader.getEventType();
@@ -88,7 +89,7 @@ public class OaiParserStream<T> {
   }
 
   private void startElement(Consumer<OaiRecord<T>> recordHandler,
-      OaiMetadataParser<T> metadataParser, XMLStreamReader xmlStreamReader) {
+      XmlMetadataStreamParser<T> metadataParser, XMLStreamReader xmlStreamReader) {
     level++;
     if (metadataLevel != 0 && level > metadataLevel) {
       metadataParser.handle(xmlStreamReader);
@@ -120,7 +121,8 @@ public class OaiParserStream<T> {
     }
   }
 
-  private void endElement(OaiMetadataParser<T> metadataParser, XMLStreamReader xmlStreamReader) {
+  private void endElement(XmlMetadataStreamParser<T> metadataParser,
+      XMLStreamReader xmlStreamReader) {
     level--;
     if (metadataLevel != 0) {
       if (level > metadataLevel) {

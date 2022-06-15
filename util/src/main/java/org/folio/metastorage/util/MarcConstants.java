@@ -1,8 +1,11 @@
 package org.folio.metastorage.util;
 
-public final class Constants {
+/**
+ * Various constants pertaining to MARC-XML and MARC-in-JSON.
+ */
+public final class MarcConstants {
 
-  private Constants() { }
+  private MarcConstants() { }
 
   public static final String COLLECTION_LABEL = "collection";
   public static final String RECORD_LABEL = "record";

@@ -303,7 +303,7 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
 
   @Override
   public Future<Router> createRouter(Vertx vertx) {
-    OaiPmhClient oaiPmhClient = new OaiPmhClient(vertx);
+    OaiPmhClientService oaiPmhClient = new OaiPmhClientService(vertx);
     return RouterBuilder.create(vertx, "openapi/meta-storage-1.0.yaml")
         .map(routerBuilder -> {
           add(routerBuilder, "getGlobalRecords", this::getGlobalRecords);

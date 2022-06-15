@@ -1,13 +1,15 @@
 package org.folio.metastorage.util;
 
+import static org.folio.metastorage.util.EncodeXmlText.encodeXmlText;
+
 import io.vertx.core.buffer.Buffer;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
 
-public final class SubDocument {
+public final class XmlSerializer {
 
-  private SubDocument() { }
+  private XmlSerializer() { }
 
   /**
    * Returns XML serialized document for node in XML.
@@ -43,7 +45,7 @@ public final class SubDocument {
                 .appendString(" ")
                 .appendString(reader.getAttributeLocalName(i))
                 .appendString("=\"")
-                .appendString(XmlJsonUtil.encodeXmlText(reader.getAttributeValue(i)))
+                .appendString(encodeXmlText(reader.getAttributeValue(i)))
                 .appendString("\"");
           }
           buffer.appendString(">");
@@ -56,7 +58,7 @@ public final class SubDocument {
           }
           break;
         case XMLStreamConstants.CHARACTERS:
-          buffer.appendString(XmlJsonUtil.encodeXmlText(reader.getText()));
+          buffer.appendString(encodeXmlText(reader.getText()));
           break;
         default:
       }
