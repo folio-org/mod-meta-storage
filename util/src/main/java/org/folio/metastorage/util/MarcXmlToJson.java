@@ -6,6 +6,7 @@ import javax.xml.stream.XMLInputFactory;
 import javax.xml.stream.XMLStreamConstants;
 import javax.xml.stream.XMLStreamException;
 import javax.xml.stream.XMLStreamReader;
+import org.folio.metastorage.oai.OaiMetadataParserMarcInJson;
 
 public final class MarcXmlToJson {
 

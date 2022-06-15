@@ -1,4 +1,4 @@
-package org.folio.metastorage.util;
+package org.folio.metastorage.oai;
 
 import io.vertx.core.Future;
 import io.vertx.core.Promise;
@@ -7,6 +7,7 @@ import io.vertx.core.file.OpenOptions;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
+import org.folio.metastorage.util.XmlParser;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

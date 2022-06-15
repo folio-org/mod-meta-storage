@@ -1,4 +1,4 @@
-package org.folio.metastorage.util;
+package org.folio.metastorage.oai;
 
 import javax.xml.stream.XMLStreamReader;
 

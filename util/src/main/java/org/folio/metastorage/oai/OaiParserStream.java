@@ -1,4 +1,4 @@
-package org.folio.metastorage.util;
+package org.folio.metastorage.oai;
 
 import io.vertx.core.Handler;
 import io.vertx.core.streams.ReadStream;

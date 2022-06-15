@@ -1,4 +1,4 @@
-package org.folio.metastorage.util;
+package org.folio.metastorage.oai;
 
 public class OaiRecord<T> {
   String datestamp;
