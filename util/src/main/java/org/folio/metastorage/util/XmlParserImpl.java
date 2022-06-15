@@ -114,7 +114,7 @@ public class XmlParserImpl implements XmlParser {
           stream.resume();
         }
       }
-    } catch (XMLStreamException e) {
+    } catch (Exception e) {
       if (exceptionHandler != null) {
         exceptionHandler.handle(e);
       } else {
