@@ -91,7 +91,7 @@ public class MainVerticleTest {
 
     RestAssured.config = RestAssuredConfig.config()
         .httpClient(HttpClientConfig.httpClientConfig()
-            .setParam("http.socket.timeout", 10000)
+            .setParam("http.socket.timeout", 15000)
             .setParam("http.connection.timeout", 5000));
 
     RestAssured.enableLoggingOfRequestAndResponseIfValidationFails();
