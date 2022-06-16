@@ -5,6 +5,7 @@ import io.vertx.core.Future;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
+import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
 import io.vertx.core.http.HttpMethod;
@@ -400,7 +401,6 @@ public class OaiPmhClientService {
     }
     addQueryParameterFromParams(enc, config.getJsonObject("params"));
     String absoluteUri = enc.toString();
-    log.info("client send request {}", absoluteUri);
     requestOptions.setAbsoluteURI(absoluteUri);
 
     storage.getAvailableMatchConfigs(connection)
@@ -408,22 +408,27 @@ public class OaiPmhClientService {
             httpClient.request(requestOptions)
                 .compose(HttpClientRequest::send)
                 .compose(res -> {
-                  log.info("client handle response");
                   job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
                   if (res.statusCode() != 200) {
-                    job.put(STATUS_LITERAL, IDLE_LITERAL);
-                    job.put("errors", "OAI server for request " + absoluteUri
-                        + " returned HTTP status " + res.statusCode());
-                    return updateJob(storage, connection, id, job)
-                        .compose(x -> Future.failedFuture("stopping due to HTTP status error"));
+                    Promise<Void> promise = Promise.promise();
+                    Buffer buffer = Buffer.buffer();
+                    res.handler(buffer::appendBuffer);
+                    res.exceptionHandler(promise::tryFail);
+                    res.endHandler(end -> {
+                      String msg = buffer.length() > 80
+                          ? buffer.getString(0, 80) : buffer.toString();
+                      promise.fail(absoluteUri + " returned HTTP status "
+                          + res.statusCode() + ": " + msg);
+                    });
+                    return promise.future();
                   }
                   XmlParser xmlParser = XmlParser.newParser(res);
-                  Promise<Void> promise = Promise.promise();
                   XmlMetadataStreamParser<JsonObject> metadataParser
                       = new XmlMetadataParserMarcInJson();
                   SourceId sourceId = new SourceId(config.getString("sourceId"));
                   Datestamp newestDatestamp = new Datestamp();
                   AtomicInteger cnt = new AtomicInteger();
+                  Promise<Void> promise = Promise.promise();
                   OaiParserStream<JsonObject> oaiParserStream =
                       new OaiParserStream<>(xmlParser,
                           oaiRecord -> {
@@ -441,7 +446,6 @@ public class OaiPmhClientService {
                   oaiParserStream.exceptionHandler(promise::fail);
                   xmlParser.endHandler(end -> {
                     job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL) + cnt.get());
-                    log.info("ingested {} records", cnt.get());
                     if (newestDatestamp.value != null) {
                       config.put("from", Util.getNextOaiDate(newestDatestamp.value));
                     }
@@ -449,22 +453,32 @@ public class OaiPmhClientService {
                     String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
                     if (resumptionToken == null
                         || resumptionToken.equals(oldResumptionToken)) {
-                      config.remove(RESUMPTION_TOKEN_LITERAL);
-                      job.put(STATUS_LITERAL, IDLE_LITERAL);
-                      updateJob(storage, connection, id, job)
-                          .onComplete(e -> promise.fail("stopping due to no resumptionToken"));
+                      promise.fail((Throwable) null);
                     } else {
                       config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
-                      log.info("continuing with resumptionToken");
-                      updateJob(storage, connection, id, job).onComplete(promise);
+                      promise.complete();
                     }
                   });
                   return promise.future();
                 }))
-        .onSuccess(x -> oaiHarvestLoop(storage, connection, id, job))
+        .compose(x ->
+            // looking good so far
+            updateJob(storage, connection, id, job).compose(x1 -> {
+              // only continue if we can also save job
+              oaiHarvestLoop(storage, connection, id, job);
+              return Future.succeededFuture();
+            })
+        )
         .onFailure(e -> {
-          log.error(e.getMessage(), e);
-          connection.close();
+          // harvest stopping
+          job.put(STATUS_LITERAL, IDLE_LITERAL);
+          if (e != null) {
+            log.error(e.getMessage(), e);
+            job.put("error", e.getMessage());
+          }
+          // hopefully updateJob works so that error can be saved.
+          updateJob(storage, connection, id, job)
+              .onComplete(x -> connection.close()); // closing (unlock) always when stopping
         });
   }
 }
