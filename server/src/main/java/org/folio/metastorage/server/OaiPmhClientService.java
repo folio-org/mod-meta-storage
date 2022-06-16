@@ -463,11 +463,9 @@ public class OaiPmhClientService {
                 }))
         .compose(x ->
             // looking good so far
-            updateJob(storage, connection, id, job).compose(x1 -> {
-              // only continue if we can also save job
-              oaiHarvestLoop(storage, connection, id, job);
-              return Future.succeededFuture();
-            })
+            updateJob(storage, connection, id, job)
+                // only continue if we can also save job
+                .onSuccess(x1 -> oaiHarvestLoop(storage, connection, id, job))
         )
         .onFailure(e -> {
           // harvest stopping
