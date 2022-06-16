@@ -258,17 +258,32 @@ public class OaiPmhClientService {
                   return connection.close();
                 }
                 job.put(STATUS_LITERAL, RUNNING_LITERAL);
-                return updateJob(storage, connection, id, job)
+                return updateStop(storage, connection, id, Boolean.FALSE)
+                    .compose(z -> updateJob(storage, connection, id, job)
                     .onFailure(e -> connection.close())
                     .map(y -> {
                       ctx.response().setStatusCode(204).end();
                       oaiHarvestLoop(storage, connection, id, job);
                       return null;
-                    });
-              })
-              .mapEmpty();
+                    }))
+                    .mapEmpty();
+              });
         })
     );
+  }
+
+  Future<Void> updateStop(Storage storage, SqlConnection connection, String id, Boolean running) {
+    return connection.preparedQuery("UPDATE " + storage.getOaiPmhClientTable()
+        + " SET stop = $2 WHERE id = $1").execute(Tuple.of(id, running)).mapEmpty();
+  }
+
+  Future<Boolean> getStop(Storage storage, SqlConnection connection, String id) {
+    return connection.preparedQuery("SELECT stop FROM  " + storage.getOaiPmhClientTable()
+            + " WHERE id = $1").execute(Tuple.of(id))
+        .map(rowSet -> {
+          RowIterator<Row> iterator = rowSet.iterator();
+          return iterator.hasNext() && iterator.next().getBoolean("stop");
+        });
   }
 
   /**
@@ -294,8 +309,7 @@ public class OaiPmhClientService {
                 HttpResponse.responseError(ctx, 400, "not running");
                 return Future.succeededFuture();
               }
-              job.put(STATUS_LITERAL, IDLE_LITERAL);
-              return updateJob(storage, connection, id, job)
+              return updateStop(storage, connection, id, true)
                   .map(x -> {
                     ctx.response().setStatusCode(204).end();
                     return null;
@@ -403,7 +417,15 @@ public class OaiPmhClientService {
     String absoluteUri = enc.toString();
     requestOptions.setAbsoluteURI(absoluteUri);
 
-    storage.getAvailableMatchConfigs(connection)
+    Future<Void> f = getStop(storage, connection, id)
+        .compose(v -> {
+          if (v.equals(Boolean.TRUE)) {
+            return Future.failedFuture((String) null);
+          }
+          return Future.succeededFuture();
+        });
+
+    f.compose(y -> storage.getAvailableMatchConfigs(connection)
         .compose(matchKeyConfigs ->
             httpClient.request(requestOptions)
                 .compose(HttpClientRequest::send)
@@ -460,7 +482,7 @@ public class OaiPmhClientService {
                     }
                   });
                   return promise.future();
-                }))
+                })))
         .compose(x ->
             // looking good so far
             updateJob(storage, connection, id, job)

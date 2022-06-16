@@ -181,9 +181,11 @@ public class MainVerticleTest {
 
     Router router = Router.router(vertx);
     router.get("/mock/oai").handler(c -> {
-      c.response().setStatusCode(mockStatus);
-      c.response().putHeader("Content-Type", mockContentType);
-      c.response().end(mockBody);
+      vertx.setTimer(10, x -> {
+        c.response().setStatusCode(mockStatus);
+        c.response().putHeader("Content-Type", mockContentType);
+        c.response().end(mockBody);
+      });
     });
     HttpServer httpServer = Vertx.vertx().createHttpServer().requestHandler(router);
     f = f.compose(e -> httpServer.listen(MOCK_PORT).mapEmpty());
@@ -2604,6 +2606,140 @@ public class MainVerticleTest {
         .body("totalRecords", is(0))
         .body("totalRequests", is(1))
         .body("error", is("Bad marcxml element: foo"))
+        .body("config.id", is(PMH_CLIENT_ID))
+        .body("config.sourceId", is(sourceId1));
+  }
+
+
+  @Test
+  public void oaiPmhClientSameResumptionToken() {
+    String sourceId1 = "SOURCE-1";
+
+    createIsbnMatchKey();
+
+    JsonObject oaiPmhClient = new JsonObject()
+        .put("url", MOCK_URL + "/mock/oai")
+        .put("set", "isbn")
+        .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
+        .put("sourceId", sourceId1)
+        .put("id", PMH_CLIENT_ID);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .post("/meta-storage/pmh-clients")
+        .then().statusCode(201)
+        .contentType("application/json")
+        .body(Matchers.is(oaiPmhClient.encode()));
+
+    mockBody = """
+<?xml version="1.0"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+  <responseDate>2022-06-09T09:54:45Z</responseDate>
+  <request verb="ListRecords" set="isbn" metadataPrefix="marc21">https://localhost/mock/oai</request>
+  <ListRecords>
+  <resumptionToken>MzM5OzE7Ozt2MS4w</resumptionToken></ListRecords>
+  </OAI-PMH>
+        """;
+    mockContentType = "text/xml";
+    mockStatus = 200;
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/start")
+        .then().statusCode(204);
+
+    Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> harvestCompleted(TENANT_1, PMH_CLIENT_ID));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("status", is("idle"))
+        .body("totalRecords", is(0))
+        .body("totalRequests", is(2))
+        .body("config.id", is(PMH_CLIENT_ID))
+        .body("config.sourceId", is(sourceId1));
+  }
+
+
+  @Test
+  public void oaiPmhClientStop() {
+    String sourceId1 = "SOURCE-1";
+
+    createIsbnMatchKey();
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/stop")
+        .then().statusCode(404)
+        .body(is(PMH_CLIENT_ID));
+
+    JsonObject oaiPmhClient = new JsonObject()
+        .put("url", MOCK_URL + "/mock/oai")
+        .put("set", "isbn")
+        .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
+        .put("sourceId", sourceId1)
+        .put("id", PMH_CLIENT_ID);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .post("/meta-storage/pmh-clients")
+        .then().statusCode(201)
+        .contentType("application/json")
+        .body(Matchers.is(oaiPmhClient.encode()));
+
+    mockBody = """
+<?xml version="1.0"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+  <responseDate>2022-06-09T09:54:45Z</responseDate>
+  <request verb="ListRecords" set="isbn" metadataPrefix="marc21">https://localhost/mock/oai</request>
+  <ListRecords>
+  <resumptionToken>MzM5OzE7Ozt2MS4w</resumptionToken></ListRecords>
+  </OAI-PMH>
+        """;
+    mockContentType = "text/xml";
+    mockStatus = 200;
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/stop")
+        .then().statusCode(400)
+        .body(containsString("not running"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/start")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/stop")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/stop")
+        .then().statusCode(204);
+
+    Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> harvestCompleted(TENANT_1, PMH_CLIENT_ID));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("status", is("idle"))
+        .body("totalRecords", is(0))
+        .body("totalRequests", is(1))
         .body("config.id", is(PMH_CLIENT_ID))
         .body("config.sourceId", is(sourceId1));
   }
