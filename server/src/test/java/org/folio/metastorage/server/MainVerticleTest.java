@@ -2375,6 +2375,7 @@ public class MainVerticleTest {
         .body("totalRecords", is(10))
         .body("totalRequests", is(3)) // 4 + 4 + 2 : 3 requests with limit 4
         .body("config.id", is(PMH_CLIENT_ID))
+        .body("error", is(nullValue()))
         .body("config.sourceId", is(sourceId1));
 
     RestAssured.given()

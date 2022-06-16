@@ -453,7 +453,7 @@ public class OaiPmhClientService {
                     String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
                     if (resumptionToken == null
                         || resumptionToken.equals(oldResumptionToken)) {
-                      promise.fail((Throwable) null);
+                      promise.fail((String) null);
                     } else {
                       config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
                       promise.complete();
@@ -470,7 +470,7 @@ public class OaiPmhClientService {
         .onFailure(e -> {
           // harvest stopping
           job.put(STATUS_LITERAL, IDLE_LITERAL);
-          if (e != null) {
+          if (e.getMessage() != null) {
             log.error(e.getMessage(), e);
             job.put("error", e.getMessage());
           }
