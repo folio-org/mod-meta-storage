@@ -2502,7 +2502,7 @@ public class MainVerticleTest {
         .body("status", is("idle"))
         .body("totalRecords", is(0))
         .body("totalRequests", is(1))
-        .body("error", containsString("returned HTTP status 400: mock error"))
+        .body("error", containsString("HTTP status 400: mock error"))
         .body("config.id", is(PMH_CLIENT_ID))
         .body("config.sourceId", is(sourceId1));
   }

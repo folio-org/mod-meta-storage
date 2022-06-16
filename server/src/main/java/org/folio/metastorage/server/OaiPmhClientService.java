@@ -8,6 +8,7 @@ import io.vertx.core.Vertx;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
+import io.vertx.core.http.HttpClientResponse;
 import io.vertx.core.http.HttpMethod;
 import io.vertx.core.http.RequestOptions;
 import io.vertx.core.json.JsonArray;
@@ -50,6 +51,8 @@ public class OaiPmhClientService {
 
   private static final String TOTAL_REQUESTS_LITERAL = "totalRequests";
 
+  private static final String WHERE_ID_1_EQUALS = " WHERE ID = $1";
+
   private static final Logger log = LogManager.getLogger(OaiPmhClientService.class);
 
   public OaiPmhClientService(Vertx vertx) {
@@ -81,7 +84,7 @@ public class OaiPmhClientService {
 
   static Future<Row> getOaiPmhClient(Storage storage, SqlConnection connection, String id) {
     return connection.preparedQuery("SELECT * FROM " + storage.getOaiPmhClientTable()
-            + " WHERE id = $1")
+            + WHERE_ID_1_EQUALS)
         .execute(Tuple.of(id))
         .map(rowSet -> {
           RowIterator<Row> iterator = rowSet.iterator();
@@ -181,7 +184,7 @@ public class OaiPmhClientService {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
     return storage.getPool().preparedQuery("DELETE FROM " + storage.getOaiPmhClientTable()
-            + " WHERE id = $1")
+            + WHERE_ID_1_EQUALS)
         .execute(Tuple.of(id))
         .map(rowSet -> {
           if (rowSet.rowCount() == 0) {
@@ -206,7 +209,7 @@ public class OaiPmhClientService {
     JsonObject config = ctx.getBodyAsJson();
     config.remove("id");
     return storage.getPool().preparedQuery("UPDATE " + storage.getOaiPmhClientTable()
-            + " SET config = $2 WHERE id = $1")
+            + " SET config = $2" + WHERE_ID_1_EQUALS)
         .execute(Tuple.of(id, config))
         .map(rowSet -> {
           if (rowSet.rowCount() == 0) {
@@ -222,7 +225,7 @@ public class OaiPmhClientService {
       Storage storage, SqlConnection connection, String id,
       JsonObject job) {
     return connection.preparedQuery("UPDATE " + storage.getOaiPmhClientTable()
-            + " SET job = $2 WHERE id = $1")
+            + " SET job = $2" + WHERE_ID_1_EQUALS)
         .execute(Tuple.of(id, job))
         .mapEmpty();
   }
@@ -274,12 +277,12 @@ public class OaiPmhClientService {
 
   Future<Void> updateStop(Storage storage, SqlConnection connection, String id, Boolean running) {
     return connection.preparedQuery("UPDATE " + storage.getOaiPmhClientTable()
-        + " SET stop = $2 WHERE id = $1").execute(Tuple.of(id, running)).mapEmpty();
+        + " SET stop = $2" + WHERE_ID_1_EQUALS).execute(Tuple.of(id, running)).mapEmpty();
   }
 
   Future<Boolean> getStop(Storage storage, SqlConnection connection, String id) {
     return connection.preparedQuery("SELECT stop FROM  " + storage.getOaiPmhClientTable()
-            + " WHERE id = $1").execute(Tuple.of(id))
+            + WHERE_ID_1_EQUALS).execute(Tuple.of(id))
         .map(rowSet -> {
           RowIterator<Row> iterator = rowSet.iterator();
           return iterator.hasNext() && iterator.next().getBoolean("stop");
@@ -400,8 +403,7 @@ public class OaiPmhClientService {
     String value;
   }
 
-  void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
-    JsonObject config = job.getJsonObject(CONFIG_LITERAL);
+  Future<HttpClientResponse> listRequestRequest(JsonObject config) {
     RequestOptions requestOptions = new RequestOptions();
     requestOptions.setMethod(HttpMethod.GET);
     requestOptions.setHeaders(getHttpHeaders(config));
@@ -416,73 +418,78 @@ public class OaiPmhClientService {
     addQueryParameterFromParams(enc, config.getJsonObject("params"));
     String absoluteUri = enc.toString();
     requestOptions.setAbsoluteURI(absoluteUri);
+    return httpClient.request(requestOptions).compose(HttpClientRequest::send);
+  }
 
-    Future<Void> f = getStop(storage, connection, id)
+  private Future<Void> listRecordsResponse(Storage storage, JsonObject job, JsonObject config,
+      JsonArray matchKeyConfigs, HttpClientResponse res) {
+    job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
+    if (res.statusCode() != 200) {
+      Promise<Void> promise = Promise.promise();
+      Buffer buffer = Buffer.buffer();
+      res.handler(buffer::appendBuffer);
+      res.exceptionHandler(promise::tryFail);
+      res.endHandler(end -> {
+        String msg = buffer.length() > 80
+            ? buffer.getString(0, 80) : buffer.toString();
+        promise.fail("Returned HTTP status " + res.statusCode() + ": " + msg);
+      });
+      return promise.future();
+    }
+    XmlParser xmlParser = XmlParser.newParser(res);
+    XmlMetadataStreamParser<JsonObject> metadataParser
+        = new XmlMetadataParserMarcInJson();
+    SourceId sourceId = new SourceId(config.getString("sourceId"));
+    Datestamp newestDatestamp = new Datestamp();
+    AtomicInteger cnt = new AtomicInteger();
+    Promise<Void> promise = Promise.promise();
+    OaiParserStream<JsonObject> oaiParserStream =
+        new OaiParserStream<>(xmlParser,
+            oaiRecord -> {
+              cnt.incrementAndGet();
+              String datestamp = oaiRecord.getDatestamp();
+              if (newestDatestamp.value == null
+                  || datestamp.compareTo(newestDatestamp.value) > 0) {
+                newestDatestamp.value = datestamp;
+              }
+              xmlParser.pause();
+              ingestRecord(storage, oaiRecord, sourceId, matchKeyConfigs)
+                  .onComplete(x -> xmlParser.resume());
+            },
+            metadataParser);
+    oaiParserStream.exceptionHandler(promise::fail);
+    xmlParser.endHandler(end -> {
+      job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL) + cnt.get());
+      if (newestDatestamp.value != null) {
+        config.put("from", Util.getNextOaiDate(newestDatestamp.value));
+      }
+      String resumptionToken = oaiParserStream.getResumptionToken();
+      String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
+      if (resumptionToken == null
+          || resumptionToken.equals(oldResumptionToken)) {
+        promise.fail((String) null);
+      } else {
+        config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
+        promise.complete();
+      }
+    });
+    return promise.future();
+  }
+
+  void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
+    JsonObject config = job.getJsonObject(CONFIG_LITERAL);
+    getStop(storage, connection, id)
         .compose(v -> {
           if (v.equals(Boolean.TRUE)) {
             return Future.failedFuture((String) null);
           }
           return Future.succeededFuture();
-        });
-
-    f.compose(y -> storage.getAvailableMatchConfigs(connection)
-        .compose(matchKeyConfigs ->
-            httpClient.request(requestOptions)
-                .compose(HttpClientRequest::send)
-                .compose(res -> {
-                  job.put(TOTAL_REQUESTS_LITERAL, job.getLong(TOTAL_REQUESTS_LITERAL) + 1);
-                  if (res.statusCode() != 200) {
-                    Promise<Void> promise = Promise.promise();
-                    Buffer buffer = Buffer.buffer();
-                    res.handler(buffer::appendBuffer);
-                    res.exceptionHandler(promise::tryFail);
-                    res.endHandler(end -> {
-                      String msg = buffer.length() > 80
-                          ? buffer.getString(0, 80) : buffer.toString();
-                      promise.fail(absoluteUri + " returned HTTP status "
-                          + res.statusCode() + ": " + msg);
-                    });
-                    return promise.future();
-                  }
-                  XmlParser xmlParser = XmlParser.newParser(res);
-                  XmlMetadataStreamParser<JsonObject> metadataParser
-                      = new XmlMetadataParserMarcInJson();
-                  SourceId sourceId = new SourceId(config.getString("sourceId"));
-                  Datestamp newestDatestamp = new Datestamp();
-                  AtomicInteger cnt = new AtomicInteger();
-                  Promise<Void> promise = Promise.promise();
-                  OaiParserStream<JsonObject> oaiParserStream =
-                      new OaiParserStream<>(xmlParser,
-                          oaiRecord -> {
-                            cnt.incrementAndGet();
-                            String datestamp = oaiRecord.getDatestamp();
-                            if (newestDatestamp.value == null
-                                || datestamp.compareTo(newestDatestamp.value) > 0) {
-                              newestDatestamp.value = datestamp;
-                            }
-                            xmlParser.pause();
-                            ingestRecord(storage, oaiRecord, sourceId, matchKeyConfigs)
-                                .onComplete(x -> xmlParser.resume());
-                          },
-                          metadataParser);
-                  oaiParserStream.exceptionHandler(promise::fail);
-                  xmlParser.endHandler(end -> {
-                    job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL) + cnt.get());
-                    if (newestDatestamp.value != null) {
-                      config.put("from", Util.getNextOaiDate(newestDatestamp.value));
-                    }
-                    String resumptionToken = oaiParserStream.getResumptionToken();
-                    String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
-                    if (resumptionToken == null
-                        || resumptionToken.equals(oldResumptionToken)) {
-                      promise.fail((String) null);
-                    } else {
-                      config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
-                      promise.complete();
-                    }
-                  });
-                  return promise.future();
-                })))
+        })
+        .compose(y -> storage.getAvailableMatchConfigs(connection)
+            .compose(matchKeyConfigs ->
+                listRequestRequest(config)
+                    .compose(res -> listRecordsResponse(storage, job, config, matchKeyConfigs, res))
+            ))
         .compose(x ->
             // looking good so far
             updateJob(storage, connection, id, job)
