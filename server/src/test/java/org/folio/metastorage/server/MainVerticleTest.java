@@ -2468,7 +2468,6 @@ public class MainVerticleTest {
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", MOCK_URL + "/mock/oai")
         .put("set", "isbn")
-        .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
         .put("sourceId", sourceId1)
         .put("id", PMH_CLIENT_ID);
 
@@ -2514,7 +2513,6 @@ public class MainVerticleTest {
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", MOCK_URL + "/mock/oai")
         .put("set", "isbn")
-        .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
         .put("sourceId", sourceId1)
         .put("id", PMH_CLIENT_ID);
 
