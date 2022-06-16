@@ -2725,11 +2725,6 @@ public class MainVerticleTest {
         .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/stop")
         .then().statusCode(204);
 
-    RestAssured.given()
-        .header(XOkapiHeaders.TENANT, TENANT_1)
-        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/stop")
-        .then().statusCode(204);
-
     Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> harvestCompleted(TENANT_1, PMH_CLIENT_ID));
 
     RestAssured.given()
