@@ -32,6 +32,7 @@ import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.folio.metastorage.matchkey.MatchKeyMethod;
+import org.folio.metastorage.server.entity.ClusterBuilder;
 import org.folio.metastorage.util.LargeJsonReadStream;
 import org.folio.metastorage.util.ReadStreamConsumer;
 import org.folio.metastorage.util.SourceId;
@@ -432,14 +433,6 @@ public class Storage {
         });
   }
 
-  static JsonObject handleRecord(Row row) {
-    return new JsonObject()
-        .put("globalId", row.getUUID("id"))
-        .put("localId", row.getString("local_id"))
-        .put("sourceId", row.getString("source_id"))
-        .put("payload", row.getJsonObject("payload"));
-  }
-
   /**
    * Delete global records and update timestamp.
    * @param sqlWhere SQL WHERE clause
@@ -478,7 +471,7 @@ public class Storage {
       from = from + " WHERE " + sqlWhere;
     }
     return streamResult(ctx, null, from, sqlOrderBy, "items",
-        row -> Future.succeededFuture(handleRecord(row)));
+        row -> Future.succeededFuture(ClusterBuilder.encodeRecord(row)));
   }
 
   /**
@@ -499,27 +492,20 @@ public class Storage {
             + " WHERE " + clusterRecordTable + ".cluster_id = $1")
         .execute(Tuple.of(clusterId))
         .map(rowSet -> {
-          JsonArray records = new JsonArray();
-          rowSet.forEach(row -> records.add(handleRecord(row)));
-          JsonObject o = new JsonObject()
-              .put("clusterId", clusterId.toString())
-              .put("records", records);
+          ClusterBuilder cb = new ClusterBuilder(clusterId);
           RowIterator<Row> iterator = rowSet.iterator();
           if (iterator.hasNext()) {
             Row row = iterator.next();
-            o.put("datestamp", row.getLocalDateTime("datestamp").atZone(ZoneOffset.UTC).toString());
+            cb.datestamp(row.getLocalDateTime("datestamp"));
           }
-          return o;
+          cb.records(rowSet);
+          return cb;
         })
-        .compose(object -> connection.preparedQuery("SELECT * FROM " + clusterValueTable
+        .compose(cb -> connection.preparedQuery("SELECT * FROM " + clusterValueTable
               + " WHERE cluster_id = $1")
             .execute(Tuple.of(clusterId))
-            .map(rowSet -> {
-              JsonArray values = new JsonArray();
-              rowSet.forEach(row -> values.add(row.getString("match_value")));
-              object.put("matchValues", values);
-              return object;
-            }));
+            .map(rowSet -> cb.matchValues(rowSet)))
+        .map(cb -> cb.build());
   }
 
   /**
@@ -555,7 +541,7 @@ public class Storage {
           if (!iterator.hasNext()) {
             return null;
           }
-          return handleRecord(iterator.next());
+          return ClusterBuilder.encodeRecord(iterator.next());
         });
   }
 
