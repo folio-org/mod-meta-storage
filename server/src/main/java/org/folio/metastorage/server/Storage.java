@@ -447,7 +447,7 @@ public class Storage {
   }
 
   public Future<JsonArray> getAvailableMatchConfigs() {
-    return pool.withConnection(connection -> getAvailableMatchConfigs(connection));
+    return pool.withConnection(this::getAvailableMatchConfigs);
   }
 
   static JsonObject handleRecord(Row row) {

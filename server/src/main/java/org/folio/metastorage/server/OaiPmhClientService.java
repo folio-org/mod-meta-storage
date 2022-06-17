@@ -508,7 +508,7 @@ public class OaiPmhClientService {
             return;
           }
           Future<Void> f;
-          if (row.getBoolean("stop")) {
+          if (Boolean.TRUE.equals(row.getBoolean("stop"))) {
             f = Future.failedFuture((String) null);
           } else {
             f = storage.getAvailableMatchConfigs()
