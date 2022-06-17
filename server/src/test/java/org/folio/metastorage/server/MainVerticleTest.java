@@ -370,6 +370,24 @@ public class MainVerticleTest {
   public void matchKeysOK() {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("count", "none")
+        .get("/meta-storage/config/matchkeys")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("matchKeys", is(empty()))
+        .body("resultInfo.totalRecords", is(nullValue()));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("count", "foo")
+        .get("/meta-storage/config/matchkeys")
+        .then().statusCode(400)
+        .contentType("text/plain")
+        .body(containsString("Validation error"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("count", "exact")
         .get("/meta-storage/config/matchkeys")
         .then().statusCode(200)
         .contentType("application/json")
@@ -424,9 +442,8 @@ public class MainVerticleTest {
         .body("matchKeys", hasSize(1))
         .body("matchKeys[0].id", is(matchKey.getString("id")))
         .body("matchKeys[0].method", is(matchKey.getString("method")))
-        .body("matchKeys[0].update", is(matchKey.getString("update")))
+        .body("matchKeys[0].update", is(matchKey.getString("update")));
         // should really check that params are same
-        .body("resultInfo.totalRecords", is(1));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -436,8 +453,7 @@ public class MainVerticleTest {
         .body("matchKeys", hasSize(1))
         .body("matchKeys[0].id", is(matchKey.getString("id")))
         .body("matchKeys[0].method", is(matchKey.getString("method")))
-        .body("matchKeys[0].update", is(matchKey.getString("update")))
-        .body("resultInfo.totalRecords", is(1));
+        .body("matchKeys[0].update", is(matchKey.getString("update")));
 
     matchKey.put("update", "manual");
     RestAssured.given()
@@ -549,8 +565,10 @@ public class MainVerticleTest {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
+        .param("count", "exact")
         .get("/meta-storage/records")
         .then().statusCode(200)
+        .body("items", hasSize(2))
         .body("resultInfo.totalRecords", is(2));
 
     String res = RestAssured.given()
@@ -560,9 +578,9 @@ public class MainVerticleTest {
         .get("/meta-storage/records")
         .then().statusCode(200)
         .body("items", hasSize(2))
+        .body("resultInfo.totalRecords", is(nullValue()))
         .body("items[0].sourceId", is(sourceId))
         .body("items[1].sourceId", is(sourceId))
-        .body("resultInfo.totalRecords", is(2))
         .extract().body().asString();
     JsonObject jsonResponse = new JsonObject(res);
     String globalId = jsonResponse.getJsonArray("items").getJsonObject(0).getString("globalId");
@@ -584,6 +602,7 @@ public class MainVerticleTest {
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
         .param("query", "sourceId=" + UUID.randomUUID())
+        .param("count", "exact")
         .get("/meta-storage/records")
         .then().statusCode(200)
         .body("items", hasSize(0))
@@ -595,6 +614,7 @@ public class MainVerticleTest {
       RestAssured.given()
           .header(XOkapiHeaders.TENANT, TENANT_1)
           .header("Content-Type", "application/json")
+          .param("count", "exact")
           .param("query", "localId==" + sharedRecord.getString("localId"))
           .get("/meta-storage/records")
           .then().statusCode(200)
@@ -1187,6 +1207,7 @@ public class MainVerticleTest {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
+        .param("count", "exact")
         .get("/meta-storage/records")
         .then().statusCode(200)
         .body("resultInfo.totalRecords", is(2));
@@ -1212,6 +1233,7 @@ public class MainVerticleTest {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
+        .param("count", "exact")
         .get("/meta-storage/records")
         .then().statusCode(200)
         .body("resultInfo.totalRecords", is(1));
@@ -1237,6 +1259,7 @@ public class MainVerticleTest {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
+        .param("count", "exact")
         .get("/meta-storage/records")
         .then().statusCode(200)
         .body("resultInfo.totalRecords", is(0));
@@ -1288,6 +1311,7 @@ public class MainVerticleTest {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
+        .param("count", "exact")
         .get("/meta-storage/records")
         .then().statusCode(200)
         .body("resultInfo.totalRecords", is(3));
@@ -2382,6 +2406,7 @@ public class MainVerticleTest {
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_2)
+        .param("count", "exact")
         .get("/meta-storage/records")
         .then().statusCode(200)
         .contentType("application/json")
@@ -2414,6 +2439,7 @@ public class MainVerticleTest {
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_2)
+        .param("count", "exact")
         .get("/meta-storage/records")
         .then().statusCode(200)
         .contentType("application/json")
