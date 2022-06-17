@@ -153,7 +153,7 @@ public class Storage {
                 + clusterValueTable + "(cluster_id)",
             CREATE_IF_NO_EXISTS + oaiPmhClientTable
                 + "(id VARCHAR NOT NULL PRIMARY KEY,"
-                + " config JSONB, job JSONB, stop BOOLEAN)"
+                + " config JSONB, job JSONB, stop BOOLEAN, owner UUID)"
         )
     ).mapEmpty();
   }
@@ -444,6 +444,10 @@ public class Storage {
               ));
           return matchConfigs;
         });
+  }
+
+  public Future<JsonArray> getAvailableMatchConfigs() {
+    return pool.withConnection(connection -> getAvailableMatchConfigs(connection));
   }
 
   static JsonObject handleRecord(Row row) {

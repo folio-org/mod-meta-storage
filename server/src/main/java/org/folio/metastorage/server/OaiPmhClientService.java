@@ -20,6 +20,9 @@ import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowIterator;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.Tuple;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -105,6 +108,10 @@ public class OaiPmhClientService {
           }
           return row.getJsonObject(CONFIG_LITERAL);
         }));
+  }
+
+  static Future<JsonObject> getJob(Storage storage, String id) {
+    return storage.getPool().withConnection(connection -> getJob(storage, connection, id));
   }
 
   static Future<JsonObject> getJob(Storage storage, SqlConnection connection, String id) {
@@ -224,20 +231,45 @@ public class OaiPmhClientService {
   }
 
   static Future<Void> updateJob(
-      Storage storage, SqlConnection connection, String id,
-      JsonObject job) {
-    return connection.preparedQuery(UPDATE_B_LITERAL + storage.getOaiPmhClientTable()
-            + " SET job = $2" + B_WHERE_ID1_LITERAL)
-        .execute(Tuple.of(id, job))
+      Storage storage, String id,
+      JsonObject job, Boolean stop, UUID owner) {
+    return storage.getPool()
+        .withConnection(connection -> updateJob(storage, connection, id, job, stop, owner));
+  }
+
+  static Future<Void> updateJob(Storage storage, SqlConnection connection, String id,
+      JsonObject job, Boolean stop, UUID owner) {
+
+    StringBuilder qry = new StringBuilder(UPDATE_B_LITERAL
+        + storage.getOaiPmhClientTable() + " SET ");
+    List<Object> tupleList = new LinkedList<>();
+    tupleList.add(id);
+    int no = 2;
+    if (job != null) {
+      tupleList.add(job);
+      qry.append("job = $" + no);
+      no++;
+    }
+    if (stop != null) {
+      tupleList.add(stop);
+      if (no > 2) {
+        qry.append(",");
+      }
+      qry.append("stop = $" + no);
+      no++;
+    }
+    if (owner != null) {
+      tupleList.add(owner);
+      if (no > 2) {
+        qry.append(",");
+      }
+      qry.append("owner = $" + no);
+    }
+    qry.append(B_WHERE_ID1_LITERAL);
+    return connection.preparedQuery(qry.toString())
+        .execute(Tuple.from(tupleList))
         .mapEmpty();
   }
-
-  static Future<Boolean> lock(SqlConnection connection) {
-    return connection.preparedQuery("SELECT pg_try_advisory_lock($1)")
-        .execute(Tuple.of(1))
-        .map(rowSet -> rowSet.iterator().next().getBoolean(0));
-  }
-
 
   /**
    * Start OAI PMH client job.
@@ -250,44 +282,34 @@ public class OaiPmhClientService {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
-    return storage.pool.getConnection().compose(connection ->
-        getJob(storage, connection, id).compose(job -> {
-          if (job == null) {
-            HttpResponse.responseError(ctx, 404, id);
-            return connection.close();
-          }
-          return lock(connection)
-              .compose(x -> {
-                if (Boolean.FALSE.equals(x)) {
-                  HttpResponse.responseError(ctx, 400, "already locked");
-                  return connection.close();
-                }
-                job.put(STATUS_LITERAL, RUNNING_LITERAL);
-                return updateStop(storage, connection, id, Boolean.FALSE)
-                    .compose(z -> updateJob(storage, connection, id, job)
-                    .onFailure(e -> connection.close())
-                    .map(y -> {
-                      ctx.response().setStatusCode(204).end();
-                      oaiHarvestLoop(storage, connection, id, job);
-                      return null;
-                    }))
-                    .mapEmpty();
-              });
-        })
-    );
+    return getJob(storage, id).compose(job -> {
+      if (job == null) {
+        return Future.succeededFuture(null);
+      }
+      job.put(STATUS_LITERAL, RUNNING_LITERAL);
+      UUID owner = UUID.randomUUID();
+      return updateJob(storage, id, job, Boolean.FALSE, owner)
+          .map(job)
+          .onSuccess(x -> oaiHarvestLoop(storage, id, job, owner));
+    }).map(job -> {
+      if (job == null) {
+        HttpResponse.responseError(ctx, 404, id);
+      } else {
+        ctx.response().setStatusCode(204).end();
+      }
+      return null;
+    });
   }
 
-  Future<Void> updateStop(Storage storage, SqlConnection connection, String id, Boolean running) {
-    return connection.preparedQuery(UPDATE_B_LITERAL + storage.getOaiPmhClientTable()
-        + " SET stop = $2" + B_WHERE_ID1_LITERAL).execute(Tuple.of(id, running)).mapEmpty();
-  }
-
-  Future<Boolean> getStop(Storage storage, SqlConnection connection, String id) {
-    return connection.preparedQuery("SELECT stop FROM " + storage.getOaiPmhClientTable()
-            + B_WHERE_ID1_LITERAL).execute(Tuple.of(id))
+  Future<Row> getStopOwner(Storage storage, String id) {
+    return storage.getPool().preparedQuery("SELECT stop, owner FROM "
+            + storage.getOaiPmhClientTable() + B_WHERE_ID1_LITERAL).execute(Tuple.of(id))
         .map(rowSet -> {
           RowIterator<Row> iterator = rowSet.iterator();
-          return iterator.hasNext() && iterator.next().getBoolean("stop");
+          if (!iterator.hasNext()) {
+            return null; // probably removed elsewhere ... so stop
+          }
+          return iterator.next();
         });
   }
 
@@ -302,24 +324,23 @@ public class OaiPmhClientService {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
-    return storage.pool.withConnection(connection ->
-        getJob(storage, connection, id)
-            .compose(job -> {
-              if (job == null) {
-                HttpResponse.responseError(ctx, 404, id);
-                return Future.succeededFuture();
-              }
-              String status = job.getString(STATUS_LITERAL);
-              if (IDLE_LITERAL.equals(status)) {
-                HttpResponse.responseError(ctx, 400, "not running");
-                return Future.succeededFuture();
-              }
-              return updateStop(storage, connection, id, true)
-                  .map(x -> {
-                    ctx.response().setStatusCode(204).end();
-                    return null;
-                  });
-            }));
+    return getJob(storage, id)
+        .compose(job -> {
+          if (job == null) {
+            HttpResponse.responseError(ctx, 404, id);
+            return Future.succeededFuture();
+          }
+          String status = job.getString(STATUS_LITERAL);
+          if (IDLE_LITERAL.equals(status)) {
+            HttpResponse.responseError(ctx, 400, "not running");
+            return Future.succeededFuture();
+          }
+          return updateJob(storage, id, null, Boolean.TRUE, null)
+              .map(x -> {
+                ctx.response().setStatusCode(204).end();
+                return null;
+              });
+        });
   }
 
   /**
@@ -405,7 +426,7 @@ public class OaiPmhClientService {
     String value;
   }
 
-  Future<HttpClientResponse> listRequestRequest(JsonObject config) {
+  Future<HttpClientResponse> listRecordsRequest(JsonObject config) {
     RequestOptions requestOptions = new RequestOptions();
     requestOptions.setMethod(HttpMethod.GET);
     requestOptions.setHeaders(getHttpHeaders(config));
@@ -478,36 +499,40 @@ public class OaiPmhClientService {
     return promise.future();
   }
 
-  void oaiHarvestLoop(Storage storage, SqlConnection connection, String id, JsonObject job) {
+  void oaiHarvestLoop(Storage storage, String id, JsonObject job, UUID owner) {
     JsonObject config = job.getJsonObject(CONFIG_LITERAL);
-    getStop(storage, connection, id)
-        .compose(v -> {
-          if (v.equals(Boolean.TRUE)) {
-            return Future.failedFuture((String) null);
+    log.info("harvest loop id={} owner={}", id, owner);
+    getStopOwner(storage, id)
+        .onSuccess(row -> {
+          if (!row.getUUID("owner").equals(owner)) {
+            return;
           }
-          return Future.succeededFuture();
-        })
-        .compose(y -> storage.getAvailableMatchConfigs(connection)
-            .compose(matchKeyConfigs ->
-                listRequestRequest(config)
-                    .compose(res -> listRecordsResponse(storage, job, config, matchKeyConfigs, res))
-            ))
-        .compose(x ->
-            // looking good so far
-            updateJob(storage, connection, id, job)
-                // only continue if we can also save job
-                .onSuccess(x1 -> oaiHarvestLoop(storage, connection, id, job))
-        )
-        .onFailure(e -> {
-          // harvest stopping
-          job.put(STATUS_LITERAL, IDLE_LITERAL);
-          if (e.getMessage() != null) {
-            log.error(e.getMessage(), e);
-            job.put("error", e.getMessage());
+          Future<Void> f;
+          if (row.getBoolean("stop")) {
+            f = Future.failedFuture((String) null);
+          } else {
+            f = storage.getAvailableMatchConfigs()
+                .compose(matchKeyConfigs ->
+                    listRecordsRequest(config)
+                        .compose(res ->
+                            listRecordsResponse(storage, job, config, matchKeyConfigs, res)));
           }
-          // hopefully updateJob works so that error can be saved.
-          updateJob(storage, connection, id, job)
-              .onComplete(x -> connection.close()); // closing (unlock) always when stopping
+          f.compose(x ->
+                  // continue harvesting
+                  updateJob(storage, id, job, null, null)
+                      // only continue if we can also save job
+                      .onSuccess(x1 -> oaiHarvestLoop(storage, id, job, owner))
+              )
+              .onFailure(e -> {
+                // stop either due to error or no resumption token or "stop"
+                job.put(STATUS_LITERAL, IDLE_LITERAL);
+                if (e.getMessage() != null) {
+                  log.error(e.getMessage(), e);
+                  job.put("error", e.getMessage());
+                }
+                // hopefully updateJob works so that error can be saved.
+                updateJob(storage, id, job, null, null);
+              });
         });
   }
 }

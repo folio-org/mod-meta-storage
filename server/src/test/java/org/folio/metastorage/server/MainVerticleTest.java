@@ -2316,13 +2316,6 @@ public class MainVerticleTest {
         .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/start")
         .then().statusCode(204);
 
-    RestAssured.given()
-        .header(XOkapiHeaders.TENANT, TENANT_1)
-        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/start")
-        .then().statusCode(400)
-        .contentType("text/plain")
-        .body(containsString("already "));
-
     Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> harvestCompleted(TENANT_1, PMH_CLIENT_ID));
 
     RestAssured.given()
@@ -2340,6 +2333,26 @@ public class MainVerticleTest {
         .then().statusCode(400)
         .contentType("text/plain")
         .body(is("not running"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/start")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/start")
+        .then().statusCode(204);
+
+    Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> harvestCompleted(TENANT_1, PMH_CLIENT_ID));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("status", is("idle"))
+        .body("totalRecords", is(0));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2764,6 +2777,4 @@ public class MainVerticleTest {
         .body("config.id", is(PMH_CLIENT_ID))
         .body("config.sourceId", is(sourceId1));
   }
-
-
 }
