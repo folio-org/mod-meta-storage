@@ -23,6 +23,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.folio.metastorage.server.entity.ClusterBuilder;
 import org.folio.metastorage.util.XmlJsonUtil;
 
 public final class OaiService {
@@ -196,6 +197,32 @@ public final class OaiService {
   /**
    * Construct metadata record XML string.
    *
+   * <p>999 ind1=1 ind2=0 identifies individual member records, on for each. 
+   * Subfields: 
+   *  $i cluster UUID
+   *  $m match values (multiple)
+   *  $l local identifier 
+   *  $s source identifiers
+   *
+   *
+   * @param rowSet global_records rowSet (empty if no record entries: deleted)
+   * @param clusterId cluster identifier that this record is part of
+   * @param matchValues match values for this cluster
+   * @return metadata record string; null if it's deleted record
+   */
+  static String processMetadata(RowSet<Row> rowSet, UUID clusterId, List<String> matchValues) {
+    if (rowSet.size() == 0) {
+      return null; //deleted record
+    }
+    ClusterBuilder cb = new ClusterBuilder(clusterId);
+    cb.records(rowSet);
+    String xmlMetadata = XmlJsonUtil.convertJsonToMarcXml(cb.build());
+    return "    <metadata>\n" + xmlMetadata + "\n    </metadata>\n";
+  }
+
+  /**
+   * Construct metadata record XML string.
+   *
    * <p>999 ind1=1 ind2=0 has identifiers for the record. $i cluster UUID; multiple $m for each
    * match value; Multiple $l, $s pairs for local identifier and source identifiers.
    *
@@ -228,9 +255,9 @@ public final class OaiService {
         }
       }
       identifiersField.add(new JsonObject()
-          .put("l", row.getString("local_id"))
-          .put("s", row.getString("source_id"))
-      );
+          .put("l", row.getString("local_id")));
+      identifiersField.add(new JsonObject()
+          .put("s", row.getString("source_id")));
     }
     if (combinedMarc == null) {
       return null; // a deleted record

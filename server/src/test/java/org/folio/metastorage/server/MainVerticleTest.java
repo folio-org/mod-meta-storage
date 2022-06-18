@@ -28,6 +28,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -54,6 +55,8 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.xml.sax.SAXException;
+
+import com.hazelcast.internal.json.Json;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -565,7 +568,7 @@ public class MainVerticleTest {
 
   }
 
-  static String verifyOaiResponse(String s, String envelope, List<String> identifiers, int length)
+  static String verifyOaiResponse(String s, String verb, List<String> identifiers, int length, JsonArray expRecords)
       throws XMLStreamException, IOException, SAXException {
     InputStream stream = new ByteArrayInputStream(s.getBytes());
     Source source = new StreamSource(stream);
@@ -580,17 +583,35 @@ public class MainVerticleTest {
 
     int offset = 0;
     int level = 0;
+    int numRecsOrDels = 0;
+    JsonArray records = new JsonArray();
+    JsonObject record = null;
+    JsonArray fields = null;
+    JsonArray subfields = null;
     while (xmlStreamReader.hasNext()) {
       int event = xmlStreamReader.next();
       if (event == XMLStreamConstants.START_ELEMENT) {
         level++;
         String elem = xmlStreamReader.getLocalName();
-        if (level == 2 && elem == envelope) {
+        path = path + "/" + elem;
+        if (level == 2 && elem == verb) {
           foundEnvelope = true;
         }
-        path = path + "/" + elem;
+        if ("identifier".equals(elem) && xmlStreamReader.hasNext()) {
+          event = xmlStreamReader.next();
+          if (event == XMLStreamConstants.CHARACTERS) {
+            identifiers.add(xmlStreamReader.getText());
+          }
+        }
         if (level == 3 && ("record".equals(elem) || "header".equals(elem))) {
+          //ListRecords has 'record' while ListIdentifiers has 'header'
           offset++;
+        }
+        if (level == 4 && "header".equals(elem)) {
+          String status = xmlStreamReader.getAttributeValue(null, "status");
+          if ("deleted".equals(status)) {
+            numRecsOrDels++;
+          }
         }
         if (level == 3 && "resumptionToken".equals(elem)) {
           event = xmlStreamReader.next();
@@ -598,11 +619,43 @@ public class MainVerticleTest {
             resumptionToken = xmlStreamReader.getText();
           }
         }
-        if ("identifier".equals(elem) && xmlStreamReader.hasNext()) {
+        if (level == 4 && "metadata".equals(elem)) {
+          //nothing
+        }
+        if (level == 5 && "record".equals(elem)) {
+          numRecsOrDels++;
+          record = new JsonObject();
+          fields = new JsonArray();
+          record.put("fields", fields);
+          records.add(record);
+        }
+        if (level == 6 && "leader".equals(elem)) {
+          event = xmlStreamReader.next();
+          String leader = null;
+          if (event == XMLStreamConstants.CHARACTERS) {
+            leader = xmlStreamReader.getText();
+          }
+          record.put("leader", leader);
+        }
+        if (level == 6 && "datafield".equals(elem)) {
+          String tag = xmlStreamReader.getAttributeValue(null, "tag");
+          String ind1 = xmlStreamReader.getAttributeValue(null, "ind1");
+          String ind2 = xmlStreamReader.getAttributeValue(null, "ind2");
+          subfields = new JsonArray();
+          fields.add(new JsonObject()
+            .put(tag, new JsonObject()
+              .put("ind1", ind1)
+              .put("ind2", ind2)
+              .put("subfields", subfields)));
+        }
+        if (level == 7 && "subfield".equals(elem)) {
+          String code = xmlStreamReader.getAttributeValue(null, "code");
+          String value = null;
           event = xmlStreamReader.next();
           if (event == XMLStreamConstants.CHARACTERS) {
-            identifiers.add(xmlStreamReader.getText());
+            value = xmlStreamReader.getText();
           }
+          subfields.add(new JsonObject().put(code, value));
         }
       } else if (event == XMLStreamConstants.END_ELEMENT) {
         int off = path.lastIndexOf('/');
@@ -616,7 +669,63 @@ public class MainVerticleTest {
     if (length > 0) {
       Assert.assertTrue(s, foundEnvelope);
     }
+    if (length != -1 && verb.equals("ListRecords")) {
+      Assert.assertEquals(s, length, numRecsOrDels);
+      if (expRecords != null) {
+        verifyMarc(expRecords , records);
+      }
+    }
     return resumptionToken;
+  }
+
+  static void verifyMarc(JsonArray expMarcs, JsonArray actMarcs) {
+    Assert.assertEquals("size", expMarcs.size(), actMarcs.size());
+    for (int i=0; i < expMarcs.size(); i++) {
+      JsonObject expMarc = expMarcs.getJsonObject(i);
+      JsonObject actMarc = actMarcs.getJsonObject(i);
+      Assert.assertEquals("leader",
+        expMarc.getString("leader"),
+        actMarc.getString("leader"));
+      JsonArray expFields = expMarc.getJsonArray("fields");
+      JsonArray actFields = actMarc.getJsonArray("fields");
+      Assert.assertNotNull("["+i+"] expected 'fields' not null", expFields);
+      Assert.assertNotNull("["+i+"] actual 'fields' not null", actFields);
+      Assert.assertEquals("["+i+"] 'fields' size", expFields.size(), actFields.size());
+      for (int j=0; j < expFields.size(); j++) {
+        JsonObject expField = expFields.getJsonObject(j);
+        JsonObject actField = actFields.getJsonObject(j);
+        for (String expFieldName : expField.getMap().keySet()) {
+          JsonObject expFieldValue = expField.getJsonObject(expFieldName);
+          JsonObject actFieldValue = actField.getJsonObject(expFieldName);
+          Assert.assertEquals("["+i+"] "+expFieldName + "/ind1",
+            expFieldValue.getString("ind1"),
+            actFieldValue.getString("ind1")
+          );
+          Assert.assertEquals("["+i+"] "+expFieldName + "/ind2",
+            expFieldValue.getString("ind2"),
+            actFieldValue.getString("ind2")
+          );
+          JsonArray expSubFields = expFieldValue.getJsonArray("subfields"); 
+          JsonArray actSubFields = actFieldValue.getJsonArray("subfields");
+          Assert.assertNotNull("["+i+"] "+expFieldName+" expected subfields not null", expSubFields);
+          Assert.assertNotNull("["+i+"] "+expFieldName+" actual subfields not null", actSubFields);
+          Assert.assertEquals("["+i+"] "+expFieldName+"/'subfields' size", expSubFields.size(), actSubFields.size()); 
+          for (int k=0; k < expSubFields.size(); k++) {
+            JsonObject expSubField = expSubFields.getJsonObject(k);
+            JsonObject actSubField = actSubFields.getJsonObject(k);
+            for (String expSubFieldName : expSubField.getMap().keySet()) {
+              String expSubFieldValue = expSubField.getString(expSubFieldName);
+              String actSubFieldValue = actSubField.getString(expSubFieldName);
+              if (!"DO_NOT_ASSERT".equals(expSubFieldValue)) {
+                Assert.assertEquals("["+i+"] "+expFieldName + "/" + expSubFieldName, 
+                  expSubFieldValue, 
+                  actSubFieldValue);
+              }
+            }
+          }
+        }
+      }
+    }
   }
 
   /**
@@ -1518,7 +1627,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "Identify", identifiers, 0);
+    verifyOaiResponse(s, "Identify", identifiers, 0, null);
   }
 
   @Test
@@ -1535,12 +1644,12 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 0);
+    verifyOaiResponse(s, "ListRecords", identifiers, 0, null);
 
     createIssnMatchKey();
 
     String sourceId1 = "SOURCE-1";
-    JsonArray records1 = new JsonArray()
+    JsonArray ingest1a = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
             .put("payload", new JsonObject()
@@ -1554,6 +1663,8 @@ public class MainVerticleTest {
                                 .put("subfields", new JsonArray()
                                     .add(new JsonObject()
                                         .put("a", "S101a")
+                                    )
+                                    .add(new JsonObject()
                                         .put("b", "S101b")
                                     )
                                 )
@@ -1566,7 +1677,8 @@ public class MainVerticleTest {
                     .put("issn", new JsonArray().add("01"))
                 )
             )
-        )
+        );
+        JsonArray ingest1b = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S102")
             .put("payload", new JsonObject()
@@ -1580,6 +1692,8 @@ public class MainVerticleTest {
                                 .put("subfields", new JsonArray()
                                     .add(new JsonObject()
                                         .put("a", "S102a")
+                                    )
+                                    .add(new JsonObject()
                                         .put("b", "S102b")
                                     )
                                 )
@@ -1593,7 +1707,115 @@ public class MainVerticleTest {
                 )
             )
         );
-    ingestRecords(records1, sourceId1);
+    //post records individually, otherwise the order of clusters and records in clusters is non-deterministic 
+    ingestRecords(ingest1a, sourceId1);
+    ingestRecords(ingest1b, sourceId1);
+
+    JsonArray expectedIssn = new JsonArray()
+      .add(new JsonObject()
+          .put("leader", "00914naa  2200337   450 ")
+          .put("fields", new JsonArray()
+                .add(new JsonObject()
+                  .put("999", new JsonObject()
+                    .put("ind1", "1")
+                    .put("ind2", "0")
+                    .put("subfields", new JsonArray()
+                      .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
+                      .add(new JsonObject().put("m", "01"))
+                      .add(new JsonObject().put("l", "S101"))
+                      .add(new JsonObject().put("s", "SOURCE-1"))
+                      .add(new JsonObject().put("l", "S102"))
+                      .add(new JsonObject().put("s", "SOURCE-1"))
+                    )
+                  )
+                )
+                .add(new JsonObject()
+                  .put("999", new JsonObject()
+                      .put("ind1", " ")
+                      .put("ind2", " ")
+                      .put("subfields", new JsonArray()
+                          .add(new JsonObject()
+                            .put("a", "S101a")
+                          )
+                          .add(new JsonObject()
+                            .put("b", "S101b")
+                          )
+                          .add(new JsonObject()
+                            .put("a", "S102a")
+                          )
+                          .add(new JsonObject()
+                            .put("b", "S102b")
+                          )
+                      )
+                  )
+                )
+          )
+      );
+
+    JsonArray expectedIsbn = new JsonArray()
+      .add(new JsonObject()
+        .put("leader", "00914naa  2200337   450 ")
+        .put("fields", new JsonArray()
+            .add(new JsonObject()
+              .put("999", new JsonObject()
+                .put("ind1", "1")
+                .put("ind2", "0")
+                .put("subfields", new JsonArray()
+                  .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
+                  .add(new JsonObject().put("m", "1"))
+                  .add(new JsonObject().put("l", "S101"))
+                  .add(new JsonObject().put("s", "SOURCE-1"))
+                )
+              )
+            )
+            .add(new JsonObject()
+                .put("999", new JsonObject()
+                    .put("ind1", " ")
+                    .put("ind2", " ")
+                    .put("subfields", new JsonArray()
+                        .add(new JsonObject()
+                            .put("a", "S101a")
+                        )
+                        .add(new JsonObject()
+                            .put("b", "S101b")
+                      )
+                    )
+                )
+            )
+        )
+      )
+      .add(new JsonObject()
+        .put("leader", "00914naa  2200337   450 ")
+        .put("fields", new JsonArray()
+          .add(new JsonObject()
+              .put("999", new JsonObject()
+              .put("ind1", "1")
+              .put("ind2", "0")
+              .put("subfields", new JsonArray()
+                  .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
+                  .add(new JsonObject().put("m", "2"))
+                  .add(new JsonObject().put("m", "3"))
+                  .add(new JsonObject().put("l", "S102"))
+                  .add(new JsonObject().put("s", "SOURCE-1"))
+              )
+              )
+          )
+          .add(new JsonObject()
+              .put("999", new JsonObject()
+                  .put("ind1", " ")
+                  .put("ind2", " ")
+                  .put("subfields", new JsonArray()
+                      .add(new JsonObject()
+                          .put("a", "S102a")
+                      )
+                      .add(new JsonObject()
+                          .put("b", "S102b")
+                      )
+                  )
+              )
+          )
+        )
+      );
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1604,7 +1826,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 1);
+    verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn);
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1615,7 +1837,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListIdentifiers", identifiers, 1);
+    verifyOaiResponse(s, "ListIdentifiers", identifiers, 1, expectedIssn);
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1626,7 +1848,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "GetRecord", identifiers, 1);
+    verifyOaiResponse(s, "GetRecord", identifiers, 1, expectedIssn);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1647,9 +1869,9 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 2);
+    verifyOaiResponse(s, "ListRecords", identifiers, 2, expectedIsbn);
 
-    JsonArray records2 = new JsonArray()
+    JsonArray ingest2 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S103")
             .put("payload", new JsonObject()
@@ -1664,7 +1886,8 @@ public class MainVerticleTest {
                 )
             )
         );
-    ingestRecords(records2, sourceId1);
+    ingestRecords(ingest2, sourceId1);
+
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1675,7 +1898,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 2);
+    verifyOaiResponse(s, "ListRecords", identifiers, 2, null);
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1686,7 +1909,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListIdentifiers", identifiers, 2);
+    verifyOaiResponse(s, "ListIdentifiers", identifiers, 2, null);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1739,6 +1962,13 @@ public class MainVerticleTest {
             )
 
         );
+
+      
+    JsonArray expectedOAI = new JsonArray()
+      .add(new JsonObject().put("leader", "00914naa  2200337   450 "))
+      .add(new JsonObject().put("leader", "00914naa  2200337   450 "))
+      .add(new JsonObject().put("leader", "00914naa  2200337   450 "));
+
     ingestRecords(records1, sourceId1);
     String time2 = Instant.now(Clock.systemUTC()).truncatedTo(ChronoUnit.SECONDS).toString();
     TimeUnit.SECONDS.sleep(1);
@@ -1754,7 +1984,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 3);
+    verifyOaiResponse(s, "ListRecords", identifiers, 3, null);
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1765,7 +1995,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 0);
+    verifyOaiResponse(s, "ListRecords", identifiers, 0, null);
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1776,7 +2006,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 0);
+    verifyOaiResponse(s, "ListRecords", identifiers, 0, null);
 
     ingestRecords(records1, sourceId1);
     s = RestAssured.given()
@@ -1788,7 +2018,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 3);
+    verifyOaiResponse(s, "ListRecords", identifiers, 3, null);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1808,6 +2038,7 @@ public class MainVerticleTest {
             .put("localId", "S103")
             .put("delete", true)
         );
+
     ingestRecords(records2, sourceId1);
 
     s = RestAssured.given()
@@ -1819,7 +2050,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 1);
+    verifyOaiResponse(s, "ListRecords", identifiers, 1, null);
 
     TimeUnit.SECONDS.sleep(1);
     String time5 = Instant.now(Clock.systemUTC()).truncatedTo(ChronoUnit.SECONDS).toString();
@@ -1843,7 +2074,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 2);
+    verifyOaiResponse(s, "ListRecords", identifiers, 2, null);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -1886,7 +2117,7 @@ public class MainVerticleTest {
         .extract().body().asString();
     int iter;
     for (iter = 0; iter < 10; iter++) {
-      String token = verifyOaiResponse(s, "ListRecords", identifiers, -1);
+      String token = verifyOaiResponse(s, "ListRecords", identifiers, -1, null);
       if (token == null) {
         break;
       }
