@@ -197,7 +197,7 @@ public final class OaiService {
   /**
    * Construct metadata record XML string.
    *
-   * <p>999 ind1=1 ind2=0 identifies individual member records, on for each. 
+   * <p>999 ind1=1 ind2=0 identifies individual member records, one for each. 
    * Subfields: 
    *  $i cluster UUID
    *  $m match values (multiple)

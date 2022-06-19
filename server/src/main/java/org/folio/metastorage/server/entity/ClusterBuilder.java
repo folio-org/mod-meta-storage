@@ -33,6 +33,11 @@ public class ClusterBuilder {
     return this;
   }
 
+  public ClusterBuilder records(JsonArray records) {
+    clusterJson.put("records", records);
+    return this;
+  }
+
   /**
    * Add matchValues from a RowSet.
    * @param rows row set
@@ -41,6 +46,11 @@ public class ClusterBuilder {
   public ClusterBuilder matchValues(RowSet<Row> rows) {
     JsonArray matchValues = new JsonArray();
     rows.forEach(row -> matchValues.add(row.getString("match_value")));
+    clusterJson.put("matchValues", matchValues);
+    return this;
+  }
+
+  public ClusterBuilder matchValues(JsonArray matchValues) {
     clusterJson.put("matchValues", matchValues);
     return this;
   }
