@@ -56,6 +56,7 @@ public class Storage {
   final String clusterValueTable;
   final String clusterMetaTable;
   final String moduleTable;
+  final String oaiConfigTable;
   private final String tenant;
   static int sqlStreamFetchSize = 50;
 
@@ -74,6 +75,7 @@ public class Storage {
     this.clusterValueTable = pool.getSchema() + ".cluster_values";
     this.clusterMetaTable = pool.getSchema() + ".cluster_meta";
     this.moduleTable = pool.getSchema() + ".module";
+    this.oaiConfigTable = pool.getSchema() + ".oai_config";
   }
 
   public Storage(RoutingContext routingContext) {
@@ -156,7 +158,10 @@ public class Storage {
             CREATE_IF_NO_EXISTS + moduleTable
                 + "(id VARCHAR NOT NULL PRIMARY KEY,"
                 + " url VARCHAR, "
-                + " function VARCHAR)"
+                + " function VARCHAR)",
+            CREATE_IF_NO_EXISTS + oaiConfigTable
+                + "(id VARCHAR NOT NULL PRIMARY KEY,"
+                + " config JSONB NOT NULL)"
         )
     ).mapEmpty();
   }
@@ -872,7 +877,42 @@ public class Storage {
         row -> Future.succeededFuture(CodeModuleEntity.CodeModuleBuilder.asJson(row)));
   }
 
-  //
+  //end modules
+  //start oai config
+
+  /**
+   * Update OAI config.
+   * @param config OAI config
+   * @return async result with TRUE if updated; FALSE if not found
+   */
+  public Future<Boolean> updateOaiConfig(JsonObject config) {
+
+    return pool.preparedQuery(
+      "INSERT INTO " + oaiConfigTable + " (id, config)"
+          + " VALUES ($1, $2) ON CONFLICT(id) DO UPDATE SET config = $2")
+      .execute(Tuple.of("1", config))
+      .mapEmpty();
+  }
+
+  /**
+   * Select OAI config.
+   * @return OAI config
+   */
+  public Future<JsonObject> selectOaiConfig() {
+    String sql = "SELECT * FROM " + oaiConfigTable + " WHERE id = '1'";
+
+    return pool.preparedQuery(sql)
+        .execute()
+        .map(res -> {
+          RowIterator<Row> iterator = res.iterator();
+          if (!iterator.hasNext()) {
+            return null;
+          }
+          Row row = iterator.next();
+          return row.getJsonObject("config");
+        });
+  }
+  // end oai config
 
   private static JsonObject copyWithoutNulls(JsonObject obj) {
     JsonObject n = new JsonObject();

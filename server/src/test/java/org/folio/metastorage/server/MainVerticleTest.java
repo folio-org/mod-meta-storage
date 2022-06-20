@@ -1787,6 +1787,48 @@ public class MainVerticleTest {
   }
 
   @Test
+  public void testOaiConfigRU() {
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/oai")
+        .then()
+        .statusCode(404);
+
+    JsonObject oaiConfig = new JsonObject()
+        .put("baseURL", "localhost")
+        .put("adminEmail", "admin@localhost")
+        .put("transformer", "transform-marc")
+        .put("repositoryName", "MetaStorage OAI server");
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiConfig.encode())
+        .put("/meta-storage/config/oai")
+        .then()
+        .statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/oai")
+        .then()
+        .statusCode(200)
+        .contentType("application/json")
+        .body(Matchers.is(oaiConfig.encode()));
+
+    oaiConfig.put("badProperty", "not allower");
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiConfig.encode())
+        .put("/meta-storage/config/oai")
+        .then()
+        .statusCode(400);
+
+  }
+
+  @Test
   public void testOaiSimple() throws XMLStreamException, IOException, SAXException {
     createIsbnMatchKey();
 

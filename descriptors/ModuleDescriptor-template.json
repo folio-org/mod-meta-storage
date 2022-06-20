@@ -23,6 +23,30 @@
       ]
     },
     {
+      "id": "meta-storage-config-oai",
+      "version": "1.0",
+      "handlers": [
+        {
+          "methods": [
+            "GET"
+          ],
+          "pathPattern": "/meta-storage/config/oai",
+          "permissionsRequired": [
+            "meta-storage-config-oai.get"
+          ]
+        },
+        {
+          "methods": [
+            "PUT"
+          ],
+          "pathPattern": "/meta-storage/config/oai",
+          "permissionsRequired": [
+            "meta-storage-config-oai.put"
+          ]
+        }
+      ]
+    },
+    {
       "id": "meta-storage-config-matchkeys",
       "version": "1.0",
       "handlers": [
@@ -225,6 +249,25 @@
   "requires": [],
   "permissionSets": [
     {
+      "permissionName": "meta-storage-config-oai.get",
+      "displayName": "meta storage - retrieve OAI configuration",
+      "description": "Retrieve OAI configuration"
+    },
+    {
+      "permissionName": "meta-storage-config-oai.put",
+      "displayName": "meta storage - update OAI configuration",
+      "description": "Update OAI configurations"
+    },
+    {
+      "permissionName": "meta-storage-config-oai.all",
+      "displayName": "meta storage - all OAI configuration permissions",
+      "description": "All OAI configuration permissions",
+      "subPermissions": [
+        "meta-storage-config-oai.get",
+        "meta-storage-config-oai.put"
+     ]
+    },
+    {
       "permissionName": "meta-storage-config-matchkeys.item.post",
       "displayName": "meta storage - create match key configuration",
       "description": "Create match key configuration"
@@ -365,6 +408,7 @@
       "displayName": "meta storage - all permissions",
       "description": "All permissions",
       "subPermissions": [
+        "meta-storage-config-oai.all",
         "meta-storage-config-matchkeys.all",
         "meta-storage-config-modules.all",
         "meta-storage-records.all",

@@ -337,6 +337,38 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
 
   //end modules
 
+  //oai config
+
+  Future<Void> getOaiConfig(RoutingContext ctx) {
+    Storage storage = new Storage(ctx);
+    return storage.selectOaiConfig()
+        .onSuccess(res -> {
+          if (res == null) {
+            HttpResponse.responseError(ctx, 404, "OAI config not found");
+            return;
+          }
+          HttpResponse.responseJson(ctx, 200).end(res.encode());
+        })
+        .mapEmpty();
+  }
+
+  Future<Void> putOaiConfig(RoutingContext ctx) {
+    Storage storage = new Storage(ctx);
+    JsonObject request = ctx.getBodyAsJson();
+    return storage.updateOaiConfig(request)
+        .onSuccess(res -> {
+          if (Boolean.FALSE.equals(res)) {
+            HttpResponse.responseError(ctx, 400, "OAI config not updated");
+            return;
+          }
+          ctx.response().setStatusCode(204).end();
+        })
+        .mapEmpty();
+  }
+
+
+  //end oai config
+
   static void failHandler(RoutingContext ctx) {
     Throwable t = ctx.failure();
     // both semantic errors and syntax errors are from same pile ... Choosing 400 over 422.
@@ -398,6 +430,8 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
           add(routerBuilder, "putCodeModule", this::putCodeModule);
           add(routerBuilder, "deleteCodeModule", this::deleteCodeModule);
           add(routerBuilder, "getCodeModules", this::getCodeModules);
+          add(routerBuilder, "getOaiConfig", this::getOaiConfig);
+          add(routerBuilder, "putOaiConfig", this::putOaiConfig);
           
           Router router = Router.router(vertx);
           // this endpoint is streaming and we handle it without OpenAPI and validation
