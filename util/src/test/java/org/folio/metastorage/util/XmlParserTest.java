@@ -179,4 +179,33 @@ public class XmlParserTest {
             e -> assertThat(e.getMessage(), is("handlerExcept"))));
   }
 
+
+  @Test
+  public void xmlStreamExceptionWithHandler(TestContext context) {
+    List<Integer> events = new LinkedList<>();
+    xmlParserFromFile("bad.xml")
+        .compose(xmlParser -> {
+          Promise<Void> promise = Promise.promise();
+          xmlParser.handler(event -> events.add(event.getEventType()));
+          xmlParser.exceptionHandler(promise::tryFail);
+          xmlParser.endHandler(promise::complete);
+          return promise.future();
+        })
+        .onComplete(context.asyncAssertFailure(
+            e -> assertThat(e.getMessage(), containsString("Unexpected character '<'"))));
+  }
+
+  @Test
+  public void xmlStreamExceptionNoHandler(TestContext context) {
+    List<Integer> events = new LinkedList<>();
+    xmlParserFromFile("bad.xml")
+        .compose(xmlParser -> {
+          Promise<Void> promise = Promise.promise();
+          xmlParser.handler(event -> events.add(event.getEventType()));
+          xmlParser.endHandler(promise::complete);
+          return promise.future();
+        })
+        .onComplete(context.asyncAssertSuccess(
+            end -> assertThat(events, hasSize(4))));
+  }
 }
