@@ -224,7 +224,7 @@ public class OaiPmhClientService {
           }
           return null;
         });
-}
+  }
 
   static Future<Boolean> updateJob(
       Storage storage, String id,
