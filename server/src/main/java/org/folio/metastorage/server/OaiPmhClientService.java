@@ -239,34 +239,30 @@ public class OaiPmhClientService {
     StringBuilder qry = new StringBuilder("UPDATE " + storage.getOaiPmhClientTable() + " SET ");
     List<Object> tupleList = new LinkedList<>();
     tupleList.add(id);
-    int no = 2;
     if (config != null) {
       tupleList.add(config);
-      qry.append("config = $" + no);
-      no++;
+      qry.append("config = $" + tupleList.size());
     }
     if (job != null) {
       tupleList.add(job);
-      if (no > 2) {
+      if (tupleList.size() > 2) {
         qry.append(",");
       }
-      qry.append("job = $" + no);
-      no++;
+      qry.append("job = $" + tupleList.size());
     }
     if (stop != null) {
       tupleList.add(stop);
-      if (no > 2) {
+      if (tupleList.size() > 2) {
         qry.append(",");
       }
-      qry.append("stop = $" + no);
-      no++;
+      qry.append("stop = $" + tupleList.size());
     }
     if (owner != null) {
       tupleList.add(owner);
-      if (no > 2) {
+      if (tupleList.size() > 2) {
         qry.append(",");
       }
-      qry.append("owner = $" + no);
+      qry.append("owner = $" + tupleList.size());
     }
     qry.append(B_WHERE_ID1_LITERAL);
     return connection.preparedQuery(qry.toString())
