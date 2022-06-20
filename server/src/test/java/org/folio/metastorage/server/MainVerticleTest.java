@@ -9,10 +9,14 @@ import io.restassured.response.Response;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
+import io.vertx.core.http.HttpHeaders;
+import io.vertx.core.http.HttpServer;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
+import io.vertx.ext.web.Router;
 import io.vertx.ext.web.client.WebClient;
 import io.vertx.ext.web.client.predicate.ResponsePredicate;
 import java.io.ByteArrayInputStream;
@@ -44,6 +48,8 @@ import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.folio.metastorage.module.impl.ModuleScripts;
+import org.folio.metastorage.server.entity.CodeModuleEntity;
 import org.folio.okapi.common.XOkapiHeaders;
 import org.folio.tlib.postgres.testing.TenantPgPoolContainer;
 import org.hamcrest.Matchers;
@@ -55,8 +61,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.xml.sax.SAXException;
-
-import com.hazelcast.internal.json.Json;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -74,6 +78,7 @@ public class MainVerticleTest {
   static final int MODULE_PORT = 9231;
   static final String MODULE_URL = "http://localhost:" + MODULE_PORT;
   static String tenant1 = "tenant1";
+  static final int CODE_MODULES_PORT = 9240;  
 
   static Validator oaiSchemaValidator;
 
@@ -151,6 +156,16 @@ public class MainVerticleTest {
                 .put("action", "enable")))
                 .mapEmpty());
     f.onComplete(context.asyncAssertSuccess());
+    //serve module
+    Router router = Router.router(vertx);
+    router.get("/lib/isbn-transformer.mjs").handler(ctx -> {
+      HttpServerResponse response = ctx.response();
+      response.setStatusCode(200);
+      response.putHeader(HttpHeaders.CONTENT_TYPE, "text/plain");
+      response.end(ModuleScripts.TEST_SCRIPT_1);
+    });
+    HttpServer httpServer = vertx.createHttpServer();
+    httpServer.requestHandler(router).listen(CODE_MODULES_PORT).onComplete(context.asyncAssertSuccess());
   }
 
   @AfterClass
@@ -1628,6 +1643,147 @@ public class MainVerticleTest {
         .contentType("text/xml")
         .extract().body().asString();
     verifyOaiResponse(s, "Identify", identifiers, 0, null);
+  }
+
+  @Test
+  public void testCodeModulesCRUD() {
+    //GET empty list no count
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/modules")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("modules", is(empty()))
+        .body("resultInfo.totalRecords", is(nullValue()));
+
+    //GET empty list with count
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .param("count", "exact")
+        .get("/meta-storage/config/modules")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("modules", is(empty()))
+        .body("resultInfo.totalRecords", is(0));
+
+    CodeModuleEntity module = new CodeModuleEntity("oai-transform", "url", "transform");
+
+    //GET not found item
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .get("/meta-storage/config/modules/" + module.getId())
+        .then().statusCode(404)
+        .contentType("text/plain")
+        .body(Matchers.is("Module " + module.getId() + " not found"));
+
+    //POST item
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(module.asJson().encode())
+        .post("/meta-storage/config/modules")
+        .then().statusCode(201)
+        .contentType("application/json")
+        .body(Matchers.is(module.asJson().encode()));
+
+    //POST same item again
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(module.asJson().encode())
+        .post("/meta-storage/config/modules")
+        .then().statusCode(400)
+        .contentType("text/plain")
+        .body(containsString("duplicate key value violates unique constraint"));
+
+    //GET posted item
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .get("/meta-storage/config/modules/" + module.getId())
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body(Matchers.is(module.asJson().encode()));
+
+    //GET item and validate it
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/modules")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("modules", hasSize(1))
+        .body("modules[0].id", is(module.getId()))
+        .body("modules[0].url", is(module.getUrl()))
+        .body("modules[0].function", is(module.getFunction()));
+
+    //GET search item and validate
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .get("/meta-storage/config/modules?query=function=" + module.getFunction())
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("modules", hasSize(1))
+        .body("modules[0].id", is(module.getId()))
+        .body("modules[0].url", is(module.getUrl()))
+        .body("modules[0].function", is(module.getFunction()));
+
+    //DELETE item
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .delete("/meta-storage/config/modules/" + module.getId())
+        .then().statusCode(204);
+
+    //DELETE item again
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .delete("/meta-storage/config/modules/" + module.getId())
+        .then().statusCode(404);
+
+    //GET deleted item
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .get("/meta-storage/config/modules/" + module.getId())
+        .then().statusCode(404);
+
+    //PUT item to not existing
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(module.asJson().encode())
+        .put("/meta-storage/config/modules/" + module.getId())
+        .then()
+        .statusCode(404);
+
+    //POST item again
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(module.asJson().encode())
+        .post("/meta-storage/config/modules")
+        .then().statusCode(201)
+        .contentType("application/json")
+        .body(Matchers.is(module.asJson().encode()));
+
+    //PUT item to existing 
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(module.asJson().encode())
+        .put("/meta-storage/config/modules/" + module.getId())
+        .then()
+        .statusCode(204);
+
+    //DELETE item
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .delete("/meta-storage/config/modules/" + module.getId())
+        .then().statusCode(204);
+
   }
 
   @Test

@@ -92,6 +92,57 @@
       ]
     },
     {
+      "id": "meta-storage-config-modules",
+      "version": "1.0",
+      "handlers": [
+        {
+          "methods": [
+            "POST"
+          ],
+          "pathPattern": "/meta-storage/config/modules",
+          "permissionsRequired": [
+            "meta-storage-config-modules.item.post"
+          ]
+        },
+        {
+          "methods": [
+            "GET"
+          ],
+          "pathPattern": "/meta-storage/config/modules",
+          "permissionsRequired": [
+            "meta-storage-config-modules.collection.get"
+          ]
+        },
+        {
+          "methods": [
+            "GET"
+          ],
+          "pathPattern": "/meta-storage/config/modules/{id}",
+          "permissionsRequired": [
+            "meta-storage-config-modules.item.get"
+          ]
+        },
+        {
+          "methods": [
+            "PUT"
+          ],
+          "pathPattern": "/meta-storage/config/modules/{id}",
+          "permissionsRequired": [
+            "meta-storage-config-modules.item.put"
+          ]
+        },
+        {
+          "methods": [
+            "DELETE"
+          ],
+          "pathPattern": "/meta-storage/config/modules/{id}",
+          "permissionsRequired": [
+            "meta-storage-config-modules.item.delete"
+          ]
+        }
+      ]
+    },
+    {
       "id": "meta-storage-records",
       "version": "1.0",
       "handlers": [
@@ -223,6 +274,43 @@
      ]
     },
     {
+      "permissionName": "meta-storage-config-modules.item.post",
+      "displayName": "meta storage - create code module",
+      "description": "Create code module config"
+    },
+    {
+      "permissionName": "meta-storage-config-modules.collection.get",
+      "displayName": "meta storage - retrieve all code modules",
+      "description": "Read all code modules configs"
+    },
+    {
+      "permissionName": "meta-storage-config-modules.item.get",
+      "displayName": "meta storage - retrieve code module",
+      "description": "Read code module config"
+    },
+    {
+      "permissionName": "meta-storage-config-modules.item.put",
+      "displayName": "meta storage - update code module",
+      "description": "Update code module config"
+    },
+    {
+      "permissionName": "meta-storage-config-modules.item.delete",
+      "displayName": "meta storage - delete code module",
+      "description": "Delete code module config"
+    },
+    {
+      "permissionName": "meta-storage-config-modules.all",
+      "displayName": "meta storage - all code modules configuration",
+      "description": "All code modules configuration",
+      "subPermissions": [
+        "meta-storage-config-modules.item.post",
+        "meta-storage-config-modules.collection.get",
+        "meta-storage-config-modules.item.get",
+        "meta-storage-config-modules.item.put",
+        "meta-storage-config-modules.item.delete"
+     ]
+    },
+    {
       "permissionName": "meta-storage-records.collection.get",
       "displayName": "meta storage - get records",
       "description": "Get records"
@@ -278,6 +366,7 @@
       "description": "All permissions",
       "subPermissions": [
         "meta-storage-config-matchkeys.all",
+        "meta-storage-config-modules.all",
         "meta-storage-records.all",
         "meta-storage-clusters.all"
       ]

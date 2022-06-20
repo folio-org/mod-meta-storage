@@ -1,5 +1,6 @@
 package org.folio.metastorage.module.impl;
 
+import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.http.HttpServer;
 import io.vertx.core.http.HttpServerResponse;
@@ -23,8 +24,6 @@ public class ModuleTest {
 
   static Vertx vertx;
 
-  static HttpServer httpServer;
-
   static int PORT = 9231;
 
   static String HOSTPORT = "http://localhost:" + PORT;
@@ -34,46 +33,19 @@ public class ModuleTest {
   @BeforeClass
   public static void beforeClass(TestContext context)  {
     vertx = Vertx.vertx();
+    serveModules(vertx, PORT).onComplete(context.asyncAssertSuccess());
+  }
+
+  public static Future<HttpServer> serveModules(Vertx vertx, int port)  {
     Router router = Router.router(vertx);
     router.get("/lib/isbn-transformer.mjs").handler(ctx -> {
       HttpServerResponse response = ctx.response();
       response.setStatusCode(200);
       response.putHeader(HttpHeaders.CONTENT_TYPE, "text/plain");
-      response.end("""
-        export function transform(clusterStr) {
-          let cluster = JSON.parse(clusterStr);
-          let recs = cluster.records;
-          //merge all marc recs
-          const out = {};
-          out.leader = 'new leader';
-          out.fields = [];
-          for (let i = 0; i < recs.length; i++) {
-            let rec = recs[i];
-            let marc = rec.payload.marc;
-            //collect all marc fields
-            out.fields.push(...marc.fields);
-            //stamp with custom 999 for each member
-            let f999 = 
-            {
-              '999' : 
-              {
-                'ind1': '1',
-                'ind2': '0',
-                'subfields': [
-                  {'i': rec.globalId },
-                  {'l': rec.localId },
-                  {'s': rec.sourceId }
-                ]
-              }
-            };
-            out.fields.push(f999);
-          }
-          return JSON.stringify(out);
-        }
-        """);
+      response.end(ModuleScripts.TEST_SCRIPT_1);
     });
-    httpServer = vertx.createHttpServer();
-    httpServer.requestHandler(router).listen(PORT).onComplete(context.asyncAssertSuccess());
+    HttpServer httpServer = vertx.createHttpServer();
+    return httpServer.requestHandler(router).listen(PORT);
   }
 
   @AfterClass

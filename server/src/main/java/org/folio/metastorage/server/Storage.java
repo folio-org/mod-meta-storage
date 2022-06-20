@@ -33,6 +33,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.folio.metastorage.matchkey.MatchKeyMethod;
 import org.folio.metastorage.server.entity.ClusterBuilder;
+import org.folio.metastorage.server.entity.CodeModuleEntity;
 import org.folio.metastorage.util.LargeJsonReadStream;
 import org.folio.metastorage.util.ReadStreamConsumer;
 import org.folio.metastorage.util.SourceId;
@@ -54,6 +55,7 @@ public class Storage {
   final String clusterRecordTable;
   final String clusterValueTable;
   final String clusterMetaTable;
+  final String moduleTable;
   private final String tenant;
   static int sqlStreamFetchSize = 50;
 
@@ -71,6 +73,7 @@ public class Storage {
     this.clusterRecordTable = pool.getSchema() + ".cluster_records";
     this.clusterValueTable = pool.getSchema() + ".cluster_values";
     this.clusterMetaTable = pool.getSchema() + ".cluster_meta";
+    this.moduleTable = pool.getSchema() + ".module";
   }
 
   public Storage(RoutingContext routingContext) {
@@ -95,6 +98,10 @@ public class Storage {
 
   public String getClusterValuesTable() {
     return clusterValueTable;
+  }
+
+  public String getModuleTable() {
+    return moduleTable;
   }
 
   /**
@@ -145,7 +152,11 @@ public class Storage {
             "CREATE UNIQUE INDEX IF NOT EXISTS cluster_value_value_idx ON "
                 + clusterValueTable + "(match_key_config_id, match_value)",
             "CREATE INDEX IF NOT EXISTS cluster_value_cluster_idx ON "
-                + clusterValueTable + "(cluster_id)"
+                + clusterValueTable + "(cluster_id)",
+            CREATE_IF_NO_EXISTS + moduleTable
+                + "(id VARCHAR NOT NULL PRIMARY KEY,"
+                + " url VARCHAR, "
+                + " function VARCHAR)"
         )
     ).mapEmpty();
   }
@@ -776,6 +787,92 @@ public class Storage {
         )
     );
   }
+
+  //code modules, refactor to a seperate class
+
+  /**
+   * Insert code module config into storage.
+   * @param module code module entity
+   * @return async result
+   */
+  public Future<Void> insertCodeModuleEntity(CodeModuleEntity module) {
+
+    return pool.preparedQuery(
+        "INSERT INTO " + moduleTable + " (id, url, function)"
+            + " VALUES ($1, $2, $3)")
+        .execute(module.asTuple())
+        .mapEmpty();
+  }
+
+  /**
+   * Update code module config in storage.
+   * @param module code module entity
+   * @return async result with TRUE if updated; FALSE if not found
+   */
+  public Future<Boolean> updateCodeModuleEntity(CodeModuleEntity module) {
+
+    return pool.preparedQuery(
+            "UPDATE " + moduleTable
+                + " SET url = $2, function = $3 WHERE id = $1")
+        .execute(module.asTuple())
+        .map(res -> res.rowCount() > 0);
+  }
+
+  /**
+   * Select code module entity from storage.
+   * @param id code module id; null takes any first config
+   * @return code module entity if found; null if not found
+   */
+  public Future<CodeModuleEntity> selectCodeModuleEntity(String id) {
+    String sql = "SELECT * FROM " + moduleTable;
+    List<String> tupleList = new ArrayList<>();
+    if (id != null) {
+      sql = sql + " WHERE id = $1";
+      tupleList.add(id);
+    }
+    return pool.preparedQuery(sql)
+        .execute(Tuple.from(tupleList))
+        .map(res -> {
+          RowIterator<Row> iterator = res.iterator();
+          if (!iterator.hasNext()) {
+            return null;
+          }
+          Row row = iterator.next();
+          return new CodeModuleEntity.CodeModuleBuilder(row).build();
+        });
+  }
+
+  /**
+   * Delete code module entity.
+   * @param id code module entity id
+   * @return TRUE if deleted; FALSE if not found
+   */
+  public Future<Boolean> deleteCodeModuleEntity(String id) {
+    return pool.withConnection(connection ->
+        connection.preparedQuery(
+                "DELETE FROM " + moduleTable + " WHERE id = $1")
+            .execute(Tuple.of(id))
+            .map(res -> res.rowCount() > 0));
+  }
+
+  /**
+   * Select code module entities keys.
+   * @param ctx routing context
+   * @param sqlWhere the SQL WHERE clause
+   * @param sqlOrderBy the SQL ORDER BY clause
+   * @return async result
+   */
+  public Future<Void> selectCodeModuleEntities(RoutingContext ctx, 
+      String sqlWhere, String sqlOrderBy) {
+    String from = moduleTable;
+    if (sqlWhere != null) {
+      from = from + " WHERE " + sqlWhere;
+    }
+    return streamResult(ctx, null, from, sqlOrderBy, "modules",
+        row -> Future.succeededFuture(CodeModuleEntity.CodeModuleBuilder.asJson(row)));
+  }
+
+  //
 
   private static JsonObject copyWithoutNulls(JsonObject obj) {
     JsonObject n = new JsonObject();
