@@ -56,8 +56,6 @@ public class OaiPmhClientService {
 
   private static final String B_WHERE_ID1_LITERAL = " WHERE ID = $1";
 
-  private static final String UPDATE_B_LITERAL = "UPDATE ";
-
   private static final Logger log = LogManager.getLogger(OaiPmhClientService.class);
 
   public OaiPmhClientService(Vertx vertx) {
@@ -217,7 +215,7 @@ public class OaiPmhClientService {
     String id = Util.getParameterString(params.pathParameter("id"));
     JsonObject config = ctx.getBodyAsJson();
     config.remove("id");
-    return storage.getPool().preparedQuery(UPDATE_B_LITERAL + storage.getOaiPmhClientTable()
+    return storage.getPool().preparedQuery("UPDATE " + storage.getOaiPmhClientTable()
             + " SET config = $2" + B_WHERE_ID1_LITERAL)
         .execute(Tuple.of(id, config))
         .map(rowSet -> {
@@ -232,21 +230,28 @@ public class OaiPmhClientService {
 
   static Future<Void> updateJob(
       Storage storage, String id,
-      JsonObject job, Boolean stop, UUID owner) {
+      JsonObject config, JsonObject job, Boolean stop, UUID owner) {
     return storage.getPool()
-        .withConnection(connection -> updateJob(storage, connection, id, job, stop, owner));
+        .withConnection(connection -> updateJob(storage, connection, id, config, job, stop, owner));
   }
 
   static Future<Void> updateJob(Storage storage, SqlConnection connection, String id,
-      JsonObject job, Boolean stop, UUID owner) {
+      JsonObject config, JsonObject job, Boolean stop, UUID owner) {
 
-    StringBuilder qry = new StringBuilder(UPDATE_B_LITERAL
-        + storage.getOaiPmhClientTable() + " SET ");
+    StringBuilder qry = new StringBuilder("UPDATE " + storage.getOaiPmhClientTable() + " SET ");
     List<Object> tupleList = new LinkedList<>();
     tupleList.add(id);
     int no = 2;
+    if (config != null) {
+      tupleList.add(config);
+      qry.append("config = $" + no);
+      no++;
+    }
     if (job != null) {
       tupleList.add(job);
+      if (no > 2) {
+        qry.append(",");
+      }
       qry.append("job = $" + no);
       no++;
     }
@@ -288,7 +293,7 @@ public class OaiPmhClientService {
       }
       job.put(STATUS_LITERAL, RUNNING_LITERAL);
       UUID owner = UUID.randomUUID();
-      return updateJob(storage, id, job, Boolean.FALSE, owner)
+      return updateJob(storage, id, null, job, Boolean.FALSE, owner)
           .map(job)
           .onSuccess(x -> oaiHarvestLoop(storage, id, job, owner));
     }).map(job -> {
@@ -335,7 +340,7 @@ public class OaiPmhClientService {
             HttpResponse.responseError(ctx, 400, "not running");
             return Future.succeededFuture();
           }
-          return updateJob(storage, id, null, Boolean.TRUE, null)
+          return updateJob(storage, id, null, null, Boolean.TRUE, null)
               .map(x -> {
                 ctx.response().setStatusCode(204).end();
                 return null;
@@ -484,12 +489,13 @@ public class OaiPmhClientService {
     xmlParser.endHandler(end -> {
       job.put(TOTAL_RECORDS_LITERAL, job.getLong(TOTAL_RECORDS_LITERAL) + cnt.get());
       if (newestDatestamp.value != null) {
-        config.put("from", Util.getNextOaiDate(newestDatestamp.value));
+        config.put("from", newestDatestamp.value);
       }
       String resumptionToken = oaiParserStream.getResumptionToken();
       String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
       if (resumptionToken == null
           || resumptionToken.equals(oldResumptionToken)) {
+        config.remove(RESUMPTION_TOKEN_LITERAL);
         promise.fail((String) null);
       } else {
         config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
@@ -519,7 +525,7 @@ public class OaiPmhClientService {
           }
           f.compose(x ->
                   // continue harvesting
-                  updateJob(storage, id, job, null, null)
+                  updateJob(storage, id, config, job, null, null)
                       // only continue if we can also save job
                       .onSuccess(x1 -> oaiHarvestLoop(storage, id, job, owner))
               )
@@ -531,7 +537,7 @@ public class OaiPmhClientService {
                   job.put("error", e.getMessage());
                 }
                 // hopefully updateJob works so that error can be saved.
-                updateJob(storage, id, job, null, null);
+                updateJob(storage, id, config, job, null, null);
               });
         });
   }

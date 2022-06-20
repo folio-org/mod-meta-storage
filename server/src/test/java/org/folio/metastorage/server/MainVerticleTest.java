@@ -62,6 +62,7 @@ import org.xml.sax.SAXException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -2415,7 +2416,20 @@ public class MainVerticleTest {
         .body("totalRequests", is(3)) // 4 + 4 + 2 : 3 requests with limit 4
         .body("config.id", is(PMH_CLIENT_ID))
         .body("error", is(nullValue()))
+        .body("config.resumptionToken", is(nullValue()))
+        .body("config.from", hasLength(20))
+        .body("config.until", is(nullValue()))
         .body("config.sourceId", is(sourceId1));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_2)
+        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID)
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("resumptionToken", is(nullValue()))
+        .body("from", hasLength(20))
+        .body("until", is(nullValue()))
+        .body("sourceId", is(sourceId1));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_2)
@@ -2448,6 +2462,9 @@ public class MainVerticleTest {
         .contentType("application/json")
         .body("status", is("idle"))
         .body("config.id", is(PMH_CLIENT_ID))
+        .body("config.resumptionToken", is(nullValue()))
+        .body("config.from", hasLength(20))
+        .body("config.until", is(nullValue()))
         .body("config.sourceId", is(sourceId1));
 
     RestAssured.given()
