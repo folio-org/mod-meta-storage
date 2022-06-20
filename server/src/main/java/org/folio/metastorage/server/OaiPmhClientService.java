@@ -215,27 +215,25 @@ public class OaiPmhClientService {
     String id = Util.getParameterString(params.pathParameter("id"));
     JsonObject config = ctx.getBodyAsJson();
     config.remove("id");
-    return storage.getPool().preparedQuery("UPDATE " + storage.getOaiPmhClientTable()
-            + " SET config = $2" + B_WHERE_ID1_LITERAL)
-        .execute(Tuple.of(id, config))
-        .map(rowSet -> {
-          if (rowSet.rowCount() == 0) {
-            HttpResponse.responseError(ctx, 404, id);
-          } else {
+    return updateJob(storage, id, config, null, null, null)
+        .map(found -> {
+          if (found) {
             ctx.response().setStatusCode(204).end();
+          } else {
+            HttpResponse.responseError(ctx, 404, id);
           }
           return null;
         });
-  }
+}
 
-  static Future<Void> updateJob(
+  static Future<Boolean> updateJob(
       Storage storage, String id,
       JsonObject config, JsonObject job, Boolean stop, UUID owner) {
     return storage.getPool()
         .withConnection(connection -> updateJob(storage, connection, id, config, job, stop, owner));
   }
 
-  static Future<Void> updateJob(Storage storage, SqlConnection connection, String id,
+  static Future<Boolean> updateJob(Storage storage, SqlConnection connection, String id,
       JsonObject config, JsonObject job, Boolean stop, UUID owner) {
 
     StringBuilder qry = new StringBuilder("UPDATE " + storage.getOaiPmhClientTable() + " SET ");
@@ -273,7 +271,7 @@ public class OaiPmhClientService {
     qry.append(B_WHERE_ID1_LITERAL);
     return connection.preparedQuery(qry.toString())
         .execute(Tuple.from(tupleList))
-        .mapEmpty();
+        .map(rowSet -> rowSet.rowCount() > 0);
   }
 
   /**
