@@ -119,6 +119,25 @@ public class XmlParserTest {
   }
 
   @Test
+  public void emittingInEffect(TestContext context) {
+    List<Integer> events = new LinkedList<>();
+    xmlParserFromFile("small.xml")
+        .compose(xmlParser -> {
+          Promise<Void> promise = Promise.promise();
+          xmlParser.exceptionHandler(promise::tryFail);
+          xmlParser.endHandler(end -> promise.tryComplete());
+          xmlParser.handler(event -> {
+            events.add(event.getEventType());
+            xmlParser.pause();
+            xmlParser.fetch(1);
+          });
+          return promise.future();
+        })
+        .onComplete(context.asyncAssertSuccess(
+            end -> assertThat(events, hasSize(4))));
+  }
+
+  @Test
   public void noEndHandler(TestContext context) {
     List<Integer> events = new LinkedList<>();
     xmlParserFromFile("small.xml")

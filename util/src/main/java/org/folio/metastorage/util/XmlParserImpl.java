@@ -17,6 +17,8 @@ public class XmlParserImpl implements XmlParser {
 
   private boolean ended;
 
+  private boolean emitting;
+
   private Handler<Throwable> exceptionHandler;
 
   private Handler<XMLStreamReader> eventHandler;
@@ -88,37 +90,42 @@ public class XmlParserImpl implements XmlParser {
   }
 
   private void checkPending()  {
-    try {
-      while (demand > 0L && parser.hasNext()) {
-        int event = parser.next();
-        if (event == AsyncXMLStreamReader.EVENT_INCOMPLETE) {
-          break;
+    if (!emitting) {
+      emitting = true;
+      try {
+        while (demand > 0L && parser.hasNext()) {
+          int event = parser.next();
+          if (event == AsyncXMLStreamReader.EVENT_INCOMPLETE) {
+            break;
+          }
+          if (demand != Long.MAX_VALUE) {
+            --demand;
+          }
+          if (eventHandler != null) {
+            eventHandler.handle(parser);
+          }
         }
-        if (demand != Long.MAX_VALUE) {
-          --demand;
-        }
-        if (eventHandler != null) {
-          eventHandler.handle(parser);
-        }
-      }
-      if (ended) {
-        Handler<Void> handler = endHandler;
-        endHandler = null;
-        if (handler != null) {
-          handler.handle(null);
-        }
-      } else {
-        if (demand == 0L) {
-          stream.pause();
+        if (ended) {
+          Handler<Void> handler = endHandler;
+          endHandler = null;
+          if (handler != null) {
+            handler.handle(null);
+          }
         } else {
-          stream.resume();
+          if (demand == 0L) {
+            stream.pause();
+          } else {
+            stream.resume();
+          }
         }
-      }
-    } catch (Exception e) {
-      if (exceptionHandler != null) {
-        exceptionHandler.handle(e);
-      } else {
-        throw new DecodeException(e.getMessage(), e);
+      } catch (Exception e) {
+        if (exceptionHandler != null) {
+          exceptionHandler.handle(e);
+        } else {
+          throw new DecodeException(e.getMessage(), e);
+        }
+      } finally {
+        emitting = false;
       }
     }
   }
