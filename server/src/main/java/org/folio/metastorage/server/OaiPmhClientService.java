@@ -217,7 +217,7 @@ public class OaiPmhClientService {
     config.remove("id");
     return updateJob(storage, id, config, null, null, null)
         .map(found -> {
-          if (found) {
+          if (Boolean.TRUE.equals(found)) {
             ctx.response().setStatusCode(204).end();
           } else {
             HttpResponse.responseError(ctx, 404, id);
