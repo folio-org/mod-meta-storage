@@ -28,6 +28,8 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
 
   private static final Logger log = LogManager.getLogger(MetaStorageService.class);
   final Vertx vertx;
+  private static final String ENTITY_ID_NOT_FOUND_PATTERN = "%s %s not found";
+  private static final String MODULE_LABEL = "Module";
 
   public MetaStorageService(Vertx vertx) {
     this.vertx = vertx;
@@ -282,7 +284,8 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
     return storage.selectCodeModuleEntity(id)
         .onSuccess(e -> {
           if (e == null) {
-            HttpResponse.responseError(ctx, 404, "Module " + id + " not found");
+            HttpResponse.responseError(ctx, 404, 
+                String.format(ENTITY_ID_NOT_FOUND_PATTERN, MODULE_LABEL, id));
             return;
           }
           HttpResponse.responseJson(ctx, 200).end(e.asJson().encode());
@@ -296,7 +299,8 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
     return storage.updateCodeModuleEntity(e)
         .onSuccess(res -> {
           if (Boolean.FALSE.equals(res)) {
-            HttpResponse.responseError(ctx, 404, "Module " + e.getId() + " not found");
+            HttpResponse.responseError(ctx, 404, 
+                String.format(ENTITY_ID_NOT_FOUND_PATTERN, MODULE_LABEL, e.getId()));
             return;
           }
           ctx.response().setStatusCode(204).end();
@@ -311,7 +315,8 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
     return storage.deleteCodeModuleEntity(id)
         .onSuccess(res -> {
           if (Boolean.FALSE.equals(res)) {
-            HttpResponse.responseError(ctx, 404, "Module " + id + " not found");
+            HttpResponse.responseError(ctx, 404, 
+                String.format(ENTITY_ID_NOT_FOUND_PATTERN, MODULE_LABEL, id));
             return;
           }
           ctx.response().setStatusCode(204).end();

@@ -538,8 +538,8 @@ public class Storage {
         .compose(cb -> connection.preparedQuery("SELECT * FROM " + clusterValueTable
               + " WHERE cluster_id = $1")
             .execute(Tuple.of(clusterId))
-            .map(rowSet -> cb.matchValues(rowSet)))
-        .map(cb -> cb.build());
+            .map(cb::matchValues))
+        .map(ClusterBuilder::build);
   }
 
   /**

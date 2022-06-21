@@ -199,7 +199,7 @@ public class MainVerticleTest {
     f = f.compose(e -> httpServer.listen(MOCK_PORT).mapEmpty());
 
     f.onComplete(context.asyncAssertSuccess());
-    
+
     //serve module
     Router router2 = Router.router(vertx);
     router2.get("/lib/marc-transformer.mjs").handler(ctx -> {
@@ -1902,6 +1902,7 @@ public class MainVerticleTest {
   }
 
   @Test
+  @java.lang.SuppressWarnings("squid:S5961")
   public void testOaiSimple() throws XMLStreamException, IOException, SAXException {
     createIsbnMatchKey();
 
