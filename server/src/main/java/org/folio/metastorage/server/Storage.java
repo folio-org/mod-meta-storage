@@ -57,6 +57,7 @@ public class Storage {
   final String clusterMetaTable;
   final String moduleTable;
   final String oaiConfigTable;
+  final String oaiPmhClientTable;
   private final String tenant;
   static int sqlStreamFetchSize = 50;
 
@@ -76,6 +77,7 @@ public class Storage {
     this.clusterMetaTable = pool.getSchema() + ".cluster_meta";
     this.moduleTable = pool.getSchema() + ".module";
     this.oaiConfigTable = pool.getSchema() + ".oai_config";
+    this.oaiPmhClientTable = pool.getSchema() + ".oai_pmh_clients";
   }
 
   public Storage(RoutingContext routingContext) {
@@ -104,6 +106,10 @@ public class Storage {
 
   public String getModuleTable() {
     return moduleTable;
+
+  public String getOaiPmhClientTable() {
+    return oaiPmhClientTable;
+
   }
 
   /**
@@ -161,7 +167,10 @@ public class Storage {
                 + " function VARCHAR)",
             CREATE_IF_NO_EXISTS + oaiConfigTable
                 + "(id VARCHAR NOT NULL PRIMARY KEY,"
-                + " config JSONB NOT NULL)"
+                + " config JSONB NOT NULL)",
+            CREATE_IF_NO_EXISTS + oaiPmhClientTable
+                + "(id VARCHAR NOT NULL PRIMARY KEY,"
+                + " config JSONB, job JSONB, stop BOOLEAN, owner UUID)"
         )
     ).mapEmpty();
   }
@@ -433,7 +442,12 @@ public class Storage {
                     r, matchKeyConfigs)));
   }
 
-  Future<JsonArray> getAvailableMatchConfigs(SqlConnection conn) {
+  /**
+   * Get available match key configurations.
+   * @param conn connection to use for selecting them
+   * @return async result with array of configurations
+   */
+  public Future<JsonArray> getAvailableMatchConfigs(SqlConnection conn) {
     return conn.query("SELECT * FROM " + matchKeyConfigTable)
         .execute()
         .map(res -> {
@@ -447,6 +461,10 @@ public class Storage {
               ));
           return matchConfigs;
         });
+  }
+    
+  public Future<JsonArray> getAvailableMatchConfigs() {
+    return pool.withConnection(this::getAvailableMatchConfigs);
   }
 
   /**
