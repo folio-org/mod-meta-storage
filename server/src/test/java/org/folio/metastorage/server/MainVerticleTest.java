@@ -78,7 +78,7 @@ public class MainVerticleTest {
   static final int MODULE_PORT = 9231;
   static final String MODULE_URL = "http://localhost:" + MODULE_PORT;
   static String tenant1 = "tenant1";
-  static final int CODE_MODULES_PORT = 9240;  
+  static final int CODE_MODULES_PORT = 9232;  
 
   static Validator oaiSchemaValidator;
 
@@ -158,7 +158,7 @@ public class MainVerticleTest {
     f.onComplete(context.asyncAssertSuccess());
     //serve module
     Router router = Router.router(vertx);
-    router.get("/lib/isbn-transformer.mjs").handler(ctx -> {
+    router.get("/lib/marc-transformer.mjs").handler(ctx -> {
       HttpServerResponse response = ctx.response();
       response.setStatusCode(200);
       response.putHeader(HttpHeaders.CONTENT_TYPE, "text/plain");
@@ -2018,17 +2018,6 @@ public class MainVerticleTest {
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
         .param("set", "issn")
-        .param("verb", "ListRecords")
-        .param("metadataPrefix", "marcxml")
-        .get("/meta-storage/oai")
-        .then().statusCode(200)
-        .contentType("text/xml")
-        .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn);
-
-    s = RestAssured.given()
-        .header(XOkapiHeaders.TENANT, tenant1)
-        .param("set", "issn")
         .param("verb", "ListIdentifiers")
         .param("metadataPrefix", "marcxml")
         .get("/meta-storage/oai")
@@ -2069,6 +2058,119 @@ public class MainVerticleTest {
         .extract().body().asString();
     verifyOaiResponse(s, "ListRecords", identifiers, 2, expectedIsbn);
 
+
+    //configure transformer
+
+    CodeModuleEntity module = new CodeModuleEntity(
+        "marc-transformer", 
+        "http://localhost:" + CODE_MODULES_PORT + "/lib/marc-transformer.mjs", 
+        "transform");
+
+    //POST module configuration
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(module.asJson().encode())
+        .post("/meta-storage/config/modules")
+        .then().statusCode(201)
+        .contentType("application/json")
+        .body(Matchers.is(module.asJson().encode()));
+
+    //PUT oai configuration
+
+    JsonObject oaiConfig = new JsonObject()
+        .put("transformer", "marc-transformer");;
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiConfig.encode())
+        .put("/meta-storage/config/oai")
+        .then()
+        .statusCode(204);
+
+    JsonArray expectedIssn2 = new JsonArray()
+        .add(new JsonObject()
+            .put("leader", "new leader")
+            .put("fields", new JsonArray()
+                  .add(new JsonObject()
+                    .put("999", new JsonObject()
+                        .put("ind1", " ")
+                        .put("ind2", " ")
+                        .put("subfields", new JsonArray()
+                            .add(new JsonObject()
+                              .put("a", "S101a")
+                            )
+                            .add(new JsonObject()
+                              .put("b", "S101b")
+                            )
+                        )
+                    )
+                  )
+                  .add(new JsonObject()
+                    .put("999", new JsonObject()
+                        .put("ind1", "1")
+                        .put("ind2", "0")
+                        .put("subfields", new JsonArray()
+                        .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
+                        .add(new JsonObject().put("l", "S101"))
+                        .add(new JsonObject().put("s", "SOURCE-1"))
+                        )
+                    )
+                  )
+                  .add(new JsonObject()
+                    .put("999", new JsonObject()
+                        .put("ind1", " ")
+                        .put("ind2", " ")
+                        .put("subfields", new JsonArray()
+                            .add(new JsonObject()
+                              .put("a", "S102a")
+                            )
+                            .add(new JsonObject()
+                              .put("b", "S102b")
+                            )
+                        )
+                    )
+                  )
+                  .add(new JsonObject()
+                    .put("999", new JsonObject()
+                      .put("ind1", "1")
+                      .put("ind2", "0")
+                      .put("subfields", new JsonArray()
+                        .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
+                        .add(new JsonObject().put("l", "S102"))
+                        .add(new JsonObject().put("s", "SOURCE-1"))
+                      )
+                    )
+                  )
+            )
+        );
+
+
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .param("set", "issn")
+        .param("verb", "ListRecords")
+        .param("metadataPrefix", "marcxml")
+        .get("/meta-storage/oai")
+        .then().statusCode(200)
+        .contentType("text/xml")
+        .extract().body().asString();
+    verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn2);
+
+    //PUT disable the transformer
+
+    JsonObject oaiConfigOff = new JsonObject()
+      .put("transformer", "");;
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiConfigOff.encode())
+        .put("/meta-storage/config/oai")
+        .then()
+        .statusCode(204);
+
     JsonArray ingest2 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S103")
@@ -2093,7 +2195,8 @@ public class MainVerticleTest {
         .param("verb", "ListRecords")
         .param("metadataPrefix", "marcxml")
         .get("/meta-storage/oai")
-        .then().statusCode(200)
+        .then()
+        .statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
     verifyOaiResponse(s, "ListRecords", identifiers, 2, null);

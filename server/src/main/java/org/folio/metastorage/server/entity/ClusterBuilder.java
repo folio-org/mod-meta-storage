@@ -6,6 +6,7 @@ import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowSet;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.UUID;
 
 public class ClusterBuilder {
@@ -52,6 +53,11 @@ public class ClusterBuilder {
 
   public ClusterBuilder matchValues(JsonArray matchValues) {
     clusterJson.put("matchValues", matchValues);
+    return this;
+  }
+
+  public ClusterBuilder matchValues(List<String> matchValues) {
+    clusterJson.put("matchValues", new JsonArray(matchValues));
     return this;
   }
 

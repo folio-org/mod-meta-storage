@@ -3,10 +3,12 @@ package org.folio.metastorage.module.impl;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
 import io.vertx.core.json.JsonObject;
+import io.vertx.ext.web.RoutingContext;
 import java.util.HashMap;
 import java.util.Map;
 import org.folio.metastorage.module.Module;
 import org.folio.metastorage.module.ModuleCache;
+import org.folio.tlib.util.TenantUtil;
 
 public class ModuleCacheImpl implements ModuleCache {
 
@@ -37,6 +39,11 @@ public class ModuleCacheImpl implements ModuleCache {
       this.config = config;
     }
 
+  }
+
+  @Override
+  public Future<Module> lookup(RoutingContext ctx, JsonObject config) {
+    return lookup(ctx.vertx(), TenantUtil.tenant(ctx), config);
   }
 
   @Override
