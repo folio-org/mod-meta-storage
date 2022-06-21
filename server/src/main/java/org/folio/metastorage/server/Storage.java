@@ -106,10 +106,10 @@ public class Storage {
 
   public String getModuleTable() {
     return moduleTable;
-
+  }
+    
   public String getOaiPmhClientTable() {
     return oaiPmhClientTable;
-
   }
 
   /**
