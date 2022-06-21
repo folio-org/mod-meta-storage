@@ -231,7 +231,7 @@ public final class OaiService {
         }
         return module.execute(cb.build())
             .map(processed -> 
-    "    <metadata>\n" + XmlJsonUtil.convertJsonToMarcXml(processed) + "\n    </metadata>\n");
+    "    <metadata>\n" + JsonToMarcXml.convert(processed) + "\n    </metadata>\n");
       });
   }
   
