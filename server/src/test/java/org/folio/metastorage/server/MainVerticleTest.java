@@ -3346,6 +3346,13 @@ public class MainVerticleTest {
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
+        .get("/meta-storage/pmh-clients/all/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("items", hasSize(0));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
         .post("/meta-storage/pmh-clients/all/stop")
         .then().statusCode(204);
 
@@ -3398,7 +3405,7 @@ public class MainVerticleTest {
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
-        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
+        .get("/meta-storage/pmh-clients/all/status")
         .then().statusCode(200)
         .contentType("application/json")
         .body("items[0].status", is("idle"))
