@@ -18,6 +18,7 @@ import io.vertx.ext.web.validation.RequestParameters;
 import io.vertx.ext.web.validation.ValidationHandler;
 import io.vertx.sqlclient.Row;
 import io.vertx.sqlclient.RowIterator;
+import io.vertx.sqlclient.RowSet;
 import io.vertx.sqlclient.SqlConnection;
 import io.vertx.sqlclient.Tuple;
 import java.util.LinkedList;
@@ -101,6 +102,11 @@ public class OaiPmhClientService {
         });
   }
 
+  static Future<RowSet<Row>> getOaiPmhClients(Storage storage) {
+    return storage.getPool().query("SELECT * FROM " + storage.getOaiPmhClientTable())
+        .execute();
+  }
+
   static Future<JsonObject> getConfig(Storage storage, String id) {
     return storage.getPool().withConnection(connection ->
         getOaiPmhClient(storage, connection, id).map(row -> {
@@ -168,8 +174,7 @@ public class OaiPmhClientService {
    */
   public Future<Void> getCollection(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
-    return storage.getPool().query("SELECT id,config FROM " + storage.getOaiPmhClientTable())
-        .execute()
+    return getOaiPmhClients(storage)
         .map(rowSet -> {
           JsonArray ar = new JsonArray();
           rowSet.forEach(x -> {
@@ -287,8 +292,7 @@ public class OaiPmhClientService {
     String id = Util.getParameterString(params.pathParameter("id"));
     Future<Boolean> future;
     if (CLIENT_ID_ALL.equals(id)) {
-      future = storage.getPool().query("SELECT * FROM " + storage.getOaiPmhClientTable())
-          .execute()
+      future = getOaiPmhClients(storage)
           .map(rowSet -> {
             List<Future<Void>> futures = new LinkedList<>();
             rowSet.forEach(x -> {
@@ -350,8 +354,7 @@ public class OaiPmhClientService {
     String id = Util.getParameterString(params.pathParameter("id"));
 
     if (CLIENT_ID_ALL.equals(id)) {
-      return storage.getPool().query("SELECT * FROM " + storage.getOaiPmhClientTable())
-          .execute()
+      return getOaiPmhClients(storage)
           .map(rowSet -> {
             List<Future<Void>> futures = new LinkedList<>();
             rowSet.forEach(x -> {
@@ -396,8 +399,7 @@ public class OaiPmhClientService {
     String id = Util.getParameterString(params.pathParameter("id"));
     Future<JsonArray> f;
     if (CLIENT_ID_ALL.equals(id)) {
-      f = storage.getPool().query("SELECT * FROM " + storage.getOaiPmhClientTable())
-          .execute()
+      f = getOaiPmhClients(storage)
           .map(rowSet -> {
             JsonArray items = new JsonArray();
             rowSet.forEach(x -> {
