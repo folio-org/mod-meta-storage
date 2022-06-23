@@ -541,11 +541,12 @@
       "displayName": "meta storage - all permissions",
       "description": "All permissions",
       "subPermissions": [
-        "meta-storage-config-oai.all",
+        "meta-storage-clusters.all",
         "meta-storage-config-matchkeys.all",
         "meta-storage-config-modules.all",
-        "meta-storage-records.all",
-        "meta-storage-clusters.all"
+        "meta-storage-config-oai.all",
+        "meta-storage-pmh-clients.all",
+        "meta-storage-records.all"
       ]
     }
   ],
