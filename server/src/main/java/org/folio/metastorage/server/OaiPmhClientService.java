@@ -32,6 +32,7 @@ import org.folio.metastorage.util.SourceId;
 import org.folio.metastorage.util.XmlMetadataParserMarcInJson;
 import org.folio.metastorage.util.XmlMetadataStreamParser;
 import org.folio.metastorage.util.XmlParser;
+import org.folio.okapi.common.GenericCompositeFuture;
 import org.folio.okapi.common.HttpResponse;
 
 public class OaiPmhClientService {
@@ -55,6 +56,8 @@ public class OaiPmhClientService {
   private static final String TOTAL_REQUESTS_LITERAL = "totalRequests";
 
   private static final String B_WHERE_ID1_LITERAL = " WHERE ID = $1";
+
+  private static final String CLIENT_ID_ALL = "all";
 
   private static final Logger log = LogManager.getLogger(OaiPmhClientService.class);
 
@@ -113,25 +116,27 @@ public class OaiPmhClientService {
   }
 
   static Future<JsonObject> getJob(Storage storage, SqlConnection connection, String id) {
-    return getOaiPmhClient(storage, connection, id).map(row -> {
-      if (row == null) {
-        return null;
-      }
-      JsonObject job = row.getJsonObject("job");
-      if (job == null) {
-        job = new JsonObject()
-            .put(STATUS_LITERAL, IDLE_LITERAL)
-            .put(TOTAL_RECORDS_LITERAL, 0L)
-            .put(TOTAL_REQUESTS_LITERAL, 0L);
-      }
-      JsonObject config = job.getJsonObject(CONFIG_LITERAL);
-      if (config == null) {
-        config = row.getJsonObject(CONFIG_LITERAL);
-      }
-      config.put("id", id);
-      job.put(CONFIG_LITERAL, config);
-      return job;
-    });
+    return getOaiPmhClient(storage, connection, id).map(row -> getJob(row, id));
+  }
+
+  static JsonObject getJob(Row row, String id) {
+    if (row == null) {
+      return null;
+    }
+    JsonObject job = row.getJsonObject("job");
+    if (job == null) {
+      job = new JsonObject()
+          .put(STATUS_LITERAL, IDLE_LITERAL)
+          .put(TOTAL_RECORDS_LITERAL, 0L)
+          .put(TOTAL_REQUESTS_LITERAL, 0L);
+    }
+    JsonObject config = job.getJsonObject(CONFIG_LITERAL);
+    if (config == null) {
+      config = row.getJsonObject(CONFIG_LITERAL);
+    }
+    config.put("id", id);
+    job.put(CONFIG_LITERAL, config);
+    return job;
   }
 
   /**
@@ -280,24 +285,45 @@ public class OaiPmhClientService {
     Storage storage = new Storage(ctx);
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
+    Future<Boolean> future;
+    if (CLIENT_ID_ALL.equals(id)) {
+      future = storage.getPool().query("SELECT * FROM " + storage.getOaiPmhClientTable())
+          .execute()
+          .map(rowSet -> {
+            List<Future<Void>> futures = new LinkedList<>();
+            rowSet.forEach(x -> {
+              String id2 = x.getString("id");
+              JsonObject job = getJob(x, id2);
+              futures.add(startJob(storage, id2, job));
+            });
+            return GenericCompositeFuture.all(futures);
+          })
+          .map(true);
+    } else {
+      future = getJob(storage, id)
+          .compose(job -> {
+            if (job == null) {
+              return Future.succeededFuture(false);
+            }
+            return startJob(storage, id, job).map(true);
+          });
+    }
+    return future
+        .onSuccess(x -> {
+          if (Boolean.TRUE.equals(x)) {
+            ctx.response().setStatusCode(204).end();
+          } else {
+            HttpResponse.responseError(ctx, 404, id);
+          }
+        }).mapEmpty();
+  }
 
-    return getJob(storage, id).compose(job -> {
-      if (job == null) {
-        return Future.succeededFuture(null);
-      }
-      job.put(STATUS_LITERAL, RUNNING_LITERAL);
-      UUID owner = UUID.randomUUID();
-      return updateJob(storage, id, null, job, Boolean.FALSE, owner)
-          .map(job)
-          .onSuccess(x -> oaiHarvestLoop(storage, id, job, owner));
-    }).map(job -> {
-      if (job == null) {
-        HttpResponse.responseError(ctx, 404, id);
-      } else {
-        ctx.response().setStatusCode(204).end();
-      }
-      return null;
-    });
+  Future<Void> startJob(Storage storage, String id, JsonObject job) {
+    job.put(STATUS_LITERAL, RUNNING_LITERAL);
+    UUID owner = UUID.randomUUID();
+    return updateJob(storage, id, null, job, Boolean.FALSE, owner)
+        .onSuccess(x -> oaiHarvestLoop(storage, id, job, owner))
+        .mapEmpty();
   }
 
   Future<Row> getStopOwner(Storage storage, String id) {
@@ -323,6 +349,24 @@ public class OaiPmhClientService {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
 
+    if (CLIENT_ID_ALL.equals(id)) {
+      return storage.getPool().query("SELECT * FROM " + storage.getOaiPmhClientTable())
+          .execute()
+          .map(rowSet -> {
+            List<Future<Void>> futures = new LinkedList<>();
+            rowSet.forEach(x -> {
+              String id2 = x.getString("id");
+              JsonObject job = getJob(x, id2);
+              String status = job.getString(STATUS_LITERAL);
+              if (!IDLE_LITERAL.equals(status)) {
+                futures.add(updateJob(storage, id2, null, null, Boolean.TRUE, null).mapEmpty());
+              }
+            });
+            return GenericCompositeFuture.all(futures);
+          })
+          .onSuccess(x -> ctx.response().setStatusCode(204).end())
+          .mapEmpty();
+    }
     return getJob(storage, id)
         .compose(job -> {
           if (job == null) {
@@ -335,10 +379,8 @@ public class OaiPmhClientService {
             return Future.succeededFuture();
           }
           return updateJob(storage, id, null, null, Boolean.TRUE, null)
-              .map(x -> {
-                ctx.response().setStatusCode(204).end();
-                return null;
-              });
+              .onSuccess(x -> ctx.response().setStatusCode(204).end())
+              .mapEmpty();
         });
   }
 
@@ -352,17 +394,32 @@ public class OaiPmhClientService {
     Storage storage = new Storage(ctx);
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String id = Util.getParameterString(params.pathParameter("id"));
-
-    return storage.pool.withConnection(connection ->
-        getJob(storage, connection, id)
-            .map(job -> {
-              if (job == null) {
-                HttpResponse.responseError(ctx, 404, id);
-                return null;
-              }
-              HttpResponse.responseJson(ctx, 200).end(job.encode());
-              return null;
-            }));
+    Future<JsonArray> f;
+    if (CLIENT_ID_ALL.equals(id)) {
+      f = storage.getPool().query("SELECT * FROM " + storage.getOaiPmhClientTable())
+          .execute()
+          .map(rowSet -> {
+            JsonArray items = new JsonArray();
+            rowSet.forEach(x -> {
+              String id2 = x.getString("id");
+              items.add(getJob(x, id2));
+            });
+            return items;
+          });
+    } else {
+      f = getJob(storage, id).map(job -> job == null ? null : new JsonArray().add(job));
+    }
+    return f
+        .onSuccess(items -> {
+          if (items == null) {
+            HttpResponse.responseError(ctx, 404, id);
+            return;
+          }
+          JsonObject response = new JsonObject();
+          response.put("items", items);
+          HttpResponse.responseJson(ctx, 200).end(response.encode());
+        })
+        .mapEmpty();
   }
 
   static MultiMap getHttpHeaders(JsonObject config) {

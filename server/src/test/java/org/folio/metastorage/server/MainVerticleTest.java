@@ -33,7 +33,6 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -2794,11 +2793,11 @@ public class MainVerticleTest {
         .contentType("application/json")
         .extract().body().asString();
     JsonObject res = new JsonObject(response);
-    return "idle".equals(res.getString("status"));
+    return "idle".equals(res.getJsonArray("items").getJsonObject(0).getString("status"));
   }
 
   @Test
-  public void oaiPmhClientJobs() throws InterruptedException {
+  public void oaiPmhClientJobs() {
     String sourceId1 = "SOURCE-1";
 
     RestAssured.given()
@@ -2843,11 +2842,11 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("totalRecords", is(0))
-        .body("totalRequests", is(0))
-        .body("config.id", is(PMH_CLIENT_ID))
-        .body("config.sourceId", is(sourceId1));
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(0))
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.sourceId", is(sourceId1));
 
         RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2868,9 +2867,9 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("totalRecords", is(0))
-        .body("totalRequests", is(1));
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(1));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2896,8 +2895,8 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("totalRecords", is(0));
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2955,15 +2954,15 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("totalRecords", is(10))
-        .body("totalRequests", is(3)) // 4 + 4 + 2 : 3 requests with limit 4
-        .body("config.id", is(PMH_CLIENT_ID))
-        .body("error", is(nullValue()))
-        .body("config.resumptionToken", is(nullValue()))
-        .body("config.from", hasLength(20))
-        .body("config.until", is(nullValue()))
-        .body("config.sourceId", is(sourceId1));
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(10))
+        .body("items[0].totalRequests", is(3)) // 4 + 4 + 2 : 3 requests with limit 4
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].error", is(nullValue()))
+        .body("items[0].config.resumptionToken", is(nullValue()))
+        .body("items[0].config.from", hasLength(20))
+        .body("items[0].config.until", is(nullValue()))
+        .body("items[0].config.sourceId", is(sourceId1));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_2)
@@ -3004,12 +3003,12 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("config.id", is(PMH_CLIENT_ID))
-        .body("config.resumptionToken", is(nullValue()))
-        .body("config.from", hasLength(20))
-        .body("config.until", is(nullValue()))
-        .body("config.sourceId", is(sourceId1));
+        .body("items[0].status", is("idle"))
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.resumptionToken", is(nullValue()))
+        .body("items[0].config.from", hasLength(20))
+        .body("items[0].config.until", is(nullValue()))
+        .body("items[0].config.sourceId", is(sourceId1));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_2)
@@ -3054,12 +3053,12 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("totalRecords", is(0))
-        .body("totalRequests", is(0))
-        .body("error", containsString("localhost"))
-        .body("config.id", is(PMH_CLIENT_ID))
-        .body("config.sourceId", is(sourceId1));
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(0))
+        .body("items[0].error", containsString("localhost"))
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.sourceId", is(sourceId1));
   }
 
   @Test
@@ -3099,12 +3098,12 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("totalRecords", is(0))
-        .body("totalRequests", is(1))
-        .body("error", containsString("HTTP status 400: mock error"))
-        .body("config.id", is(PMH_CLIENT_ID))
-        .body("config.sourceId", is(sourceId1));
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(1))
+        .body("items[0].error", containsString("HTTP status 400: mock error"))
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.sourceId", is(sourceId1));
   }
 
   @Test
@@ -3144,12 +3143,12 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("totalRecords", is(0))
-        .body("totalRequests", is(1))
-        .body("error", is(nullValue())) // error should be reported
-        .body("config.id", is(PMH_CLIENT_ID))
-        .body("config.sourceId", is(sourceId1));
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(1))
+        .body("items[0].error", is(nullValue())) // error should be reported
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.sourceId", is(sourceId1));
   }
 
   @Test
@@ -3202,12 +3201,12 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("totalRecords", is(0))
-        .body("totalRequests", is(1))
-        .body("error", is("Bad marcxml element: foo"))
-        .body("config.id", is(PMH_CLIENT_ID))
-        .body("config.sourceId", is(sourceId1));
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(1))
+        .body("items[0].error", is("Bad marcxml element: foo"))
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.sourceId", is(sourceId1));
   }
 
 
@@ -3259,11 +3258,11 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("totalRecords", is(0))
-        .body("totalRequests", is(2))
-        .body("config.id", is(PMH_CLIENT_ID))
-        .body("config.sourceId", is(sourceId1));
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(2))
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.sourceId", is(sourceId1));
   }
 
 
@@ -3332,10 +3331,81 @@ public class MainVerticleTest {
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
         .then().statusCode(200)
         .contentType("application/json")
-        .body("status", is("idle"))
-        .body("totalRecords", is(0))
-        .body("totalRequests", is(1))
-        .body("config.id", is(PMH_CLIENT_ID))
-        .body("config.sourceId", is(sourceId1));
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(1))
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.sourceId", is(sourceId1));
   }
+
+  @Test
+  public void oaiPmhClientAll() {
+    String sourceId1 = "SOURCE-1";
+
+    createIsbnMatchKey();
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/all/stop")
+        .then().statusCode(204);
+
+    JsonObject oaiPmhClient = new JsonObject()
+        .put("url", MOCK_URL + "/mock/oai")
+        .put("set", "isbn")
+        .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
+        .put("sourceId", sourceId1)
+        .put("id", PMH_CLIENT_ID);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .post("/meta-storage/pmh-clients")
+        .then().statusCode(201)
+        .contentType("application/json")
+        .body(Matchers.is(oaiPmhClient.encode()));
+
+    mockBody = """
+<?xml version="1.0"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+  <responseDate>2022-06-09T09:54:45Z</responseDate>
+  <request verb="ListRecords" set="isbn" metadataPrefix="marc21">https://localhost/mock/oai</request>
+  <ListRecords>
+  <resumptionToken>MzM5OzE7Ozt2MS4w</resumptionToken></ListRecords>
+  </OAI-PMH>
+        """;
+    mockContentType = "text/xml";
+    mockStatus = 200;
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/all/stop")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/all/start")
+        .then().statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/all/stop")
+        .then().statusCode(204);
+
+    Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> harvestCompleted(TENANT_1, PMH_CLIENT_ID));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(1))
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.sourceId", is(sourceId1));
+  }
+
 }
