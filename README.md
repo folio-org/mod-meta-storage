@@ -117,14 +117,18 @@ Start a job with:
 
     curl -HX-Okapi-Tenant:$OKAPI_TENANT -XPOST $OKAPI_URL/meta-storage/pmh-clients/us-mdbj/start
 
-The job will confinue until the server returns error or returns no resumption token. The `from`
+The job will continue until the server returns error or returns no resumption token. The `from`
 property of the configuration is populated with latest datestamp in records received. This enables
 the client to repeat the job again at a later date to fetch updates from `from` to now (unless `until` is
 specified).
 
 Get status for a job with:
 
-    curl -HX-Okapi-Tenant:$OKAPI_TENANT -XPOST $OKAPI_URL/meta-storage/pmh-clients/us-mdbj/status
+    curl -HX-Okapi-Tenant:$OKAPI_TENANT $OKAPI_URL/meta-storage/pmh-clients/us-mdbj/status
+
+Get status for all jobs with:
+
+    curl -HX-Okapi-Tenant:$OKAPI_TENANT $OKAPI_URL/meta-storage/pmh-clients/all/status
 
 Stop a job with:
 
