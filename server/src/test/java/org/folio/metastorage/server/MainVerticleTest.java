@@ -63,6 +63,7 @@ import org.testcontainers.containers.PostgreSQLContainer;
 import org.xml.sax.SAXException;
 
 import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasLength;
@@ -208,13 +209,9 @@ public class MainVerticleTest {
 
   @After
   public void after(TestContext context) {
-    JsonObject oaiConfigOff = new JsonObject()
-        .put("transformer", "");;
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
-        .header("Content-Type", "application/json")
-        .body(oaiConfigOff.encode())
-        .put("/meta-storage/config/oai")
+        .delete("/meta-storage/config/oai")
         .then()
         .statusCode(204);
     RestAssured.given()
@@ -2270,7 +2267,7 @@ public class MainVerticleTest {
         .then()
         .statusCode(204);
 
-    s = RestAssured.given()
+    RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
         .param("set", "issn")
         .param("verb", "ListRecords")
@@ -2278,10 +2275,17 @@ public class MainVerticleTest {
         .get("/meta-storage/oai")
         .then().statusCode(200)
         .contentType("text/xml")
-        .extract().body().asString();
+        .body(containsString("<!-- Failed to produce record: Error -->"));
 
-    assertThat(s, containsString("failed to process metadata: Error"));
-    verifyOaiResponse(s, "ListRecords", identifiers, -1, null);
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("verb", "GetRecord")
+        .param("metadataPrefix", "marcxml")
+        .param("identifier", identifiers.get(0))
+        .get("/meta-storage/oai")
+        .then().statusCode(400)
+        .contentType("text/plain")
+        .body(containsString("Error"));
 
     //PUT disable the transformer
 

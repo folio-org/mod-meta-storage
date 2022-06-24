@@ -334,8 +334,6 @@ public final class OaiService {
     String end = withMetadata ? "    </record>\n" : "";
     return clusterValues.compose(values -> getXmlRecordMetadata(ctx, storage, conn, clusterId,
         values)
-        .recover(e -> Future.succeededFuture(
-            "      <!-- failed to process metadata: " + encodeXmlText(e.getMessage()) + " -->\n"))
         .map(metadata ->
             begin
                 + "      <header" + (metadata == null ? " status=\"deleted\"" : "") + ">\n"
@@ -388,6 +386,8 @@ public final class OaiService {
                 row.getString("match_key_config_id"), withMetadata)
                 .onSuccess(xmlRecord -> response.write(xmlRecord).onComplete(x -> stream.resume()))
                 .onFailure(e -> {
+                  response.write("<!-- Failed to produce record: "
+                      + encodeXmlText(e.getMessage()) + " -->\n");
                   log.info("failure {}", e.getMessage(), e);
                   stream.resume();
                 });
