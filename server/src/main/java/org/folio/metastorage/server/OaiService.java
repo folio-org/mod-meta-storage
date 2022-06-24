@@ -386,9 +386,7 @@ public final class OaiService {
             cnt.incrementAndGet();
             getXmlRecord(ctx, storage, conn, row.getUUID("cluster_id"), datestamp,
                 row.getString("match_key_config_id"), withMetadata)
-                .onSuccess(xmlRecord -> {
-                  response.write(xmlRecord).onComplete(x -> stream.resume());
-                })
+                .onSuccess(xmlRecord -> response.write(xmlRecord).onComplete(x -> stream.resume()))
                 .onFailure(e -> {
                   log.info("failure {}", e.getMessage(), e);
                   stream.resume();
