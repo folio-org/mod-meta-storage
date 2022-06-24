@@ -56,15 +56,6 @@ public class ModuleTest {
 
   @Test
   public void testIsbnTransformerUrl(TestContext context) {
-    JsonObject inputOld = new JsonObject()
-        .put("identifiers", new JsonArray()
-            .add(new JsonObject()
-                .put("isbn", "73209629"))
-            .add(new JsonObject()
-                .put("isbn", "73209623"))
-
-        );
-
     JsonArray recordsIn = new JsonArray()
       //first record
       .add(new JsonObject()
