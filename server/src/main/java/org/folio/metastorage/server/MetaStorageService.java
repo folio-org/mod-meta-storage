@@ -374,9 +374,7 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
   Future<Void> deleteOaiConfig(RoutingContext ctx) {
     Storage storage = new Storage(ctx);
     return storage.deleteOaiConfig()
-        .onSuccess(res -> {
-          ctx.response().setStatusCode(204).end();
-        });
+        .onSuccess(res -> ctx.response().setStatusCode(204).end());
   }
 
   //end oai config
