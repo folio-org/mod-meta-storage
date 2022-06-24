@@ -83,9 +83,9 @@ To send MARCXML to the same server with defined sourceId:
 
 The option `--xsl` may be repeated for a sequence of transformations.
 
-## OAI PMH client
+## OAI-PMH client
 
-The OAI PMH client is executing in the server. The OAI PMH client is configured by
+The OAI-PMH client is executing in the server. The OAI-PMH client is configured by
 simple JSON configuration. The identifier is user-defined and given in the initial
 post. Example with identifier `us-mdbj` below:
 
@@ -117,7 +117,11 @@ Start a job with:
 
     curl -HX-Okapi-Tenant:$OKAPI_TENANT -XPOST $OKAPI_URL/meta-storage/pmh-clients/us-mdbj/start
 
-The job will continue until the server returns error or returns no resumption token. The `from`
+Start all jobs with:
+
+    curl -HX-Okapi-Tenant:$OKAPI_TENANT -XPOST $OKAPI_URL/meta-storage/pmh-clients/all/start
+
+Each job will continue until the server returns error or returns no resumption token. The `from`
 property of the configuration is populated with latest datestamp in records received. This enables
 the client to repeat the job again at a later date to fetch updates from `from` to now (unless `until` is
 specified).
@@ -133,6 +137,10 @@ Get status for all jobs with:
 Stop a job with:
 
     curl -HX-Okapi-Tenant:$OKAPI_TENANT -XPOST $OKAPI_URL/meta-storage/pmh-clients/us-mdbj/stop
+
+Stop all jobs with:
+
+    curl -HX-Okapi-Tenant:$OKAPI_TENANT -XPOST $OKAPI_URL/meta-storage/pmh-clients/all/stop
 
 ## Additional information
 
