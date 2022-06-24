@@ -1732,7 +1732,16 @@ public class MainVerticleTest {
         .body("modules", is(empty()))
         .body("resultInfo.totalRecords", is(0));
 
-    CodeModuleEntity module = new CodeModuleEntity("oai-transform", "url", "transform");
+    //POST item with bad url and nothing should be created
+    CodeModuleEntity badModule = new CodeModuleEntity("empty",  "url", "transform");
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(badModule.asJson().encode())
+        .post("/meta-storage/config/modules")
+        .then().statusCode(400);
+
+    CodeModuleEntity module = new CodeModuleEntity("empty",  "http://localhost:" + CODE_MODULES_PORT + "/lib/empty.mjs", "transform");
 
     //GET not found item
     RestAssured.given()
@@ -2288,9 +2297,7 @@ public class MainVerticleTest {
         .body(containsString("Error"));
 
     //PUT disable the transformer
-
-    JsonObject oaiConfigOff = new JsonObject()
-      .put("transformer", "");;
+    JsonObject oaiConfigOff = new JsonObject();
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
