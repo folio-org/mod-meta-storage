@@ -208,6 +208,15 @@ public class MainVerticleTest {
 
   @After
   public void after(TestContext context) {
+    JsonObject oaiConfigOff = new JsonObject()
+        .put("transformer", "");;
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiConfigOff.encode())
+        .put("/meta-storage/config/oai")
+        .then()
+        .statusCode(204);
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .delete("/meta-storage/config/matchkeys/issn");
