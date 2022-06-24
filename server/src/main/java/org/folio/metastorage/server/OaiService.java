@@ -217,8 +217,8 @@ public final class OaiService {
    * @param matchValues match values for this cluster
    * @return metadata record string; null if it's deleted record
    */
-  static Future<String> processMetadata(RoutingContext ctx, Module module,
-      RowSet<Row> rowSet, UUID clusterId, List<String> matchValues) {
+  static Future<String> processMetadata(Module module, RowSet<Row> rowSet, UUID clusterId,
+      List<String> matchValues) {
     if (rowSet.size() == 0) {
       return Future.succeededFuture(null); //deleted record
     }
@@ -290,7 +290,7 @@ public final class OaiService {
         + " WHERE cluster_id = $1";
     return conn.preparedQuery(q)
         .execute(Tuple.of(clusterId))
-        .compose(rowSet -> processMetadata(ctx, module, rowSet, clusterId, matchValues));
+        .compose(rowSet -> processMetadata(module, rowSet, clusterId, matchValues));
   }
 
   static Future<Module> getTransformerModule(Storage storage, RoutingContext ctx) {
@@ -326,6 +326,7 @@ public final class OaiService {
         });
   }
 
+  @java.lang.SuppressWarnings({"squid:S107"})  // too many arguments
   static Future<String> getXmlRecord(RoutingContext ctx, Module module, Storage storage,
       SqlConnection conn, UUID clusterId, LocalDateTime datestamp, String oaiSet,
       boolean withMetadata) {

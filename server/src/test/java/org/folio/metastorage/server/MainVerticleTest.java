@@ -2296,6 +2296,27 @@ public class MainVerticleTest {
         .contentType("text/plain")
         .body(containsString("Error"));
 
+    // OAI config with unknown transformer
+    JsonObject oaiConfigBadTransformer = new JsonObject()
+        .put("transformer", "doesnotexist");
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiConfigBadTransformer.encode())
+        .put("/meta-storage/config/oai")
+        .then()
+        .statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .param("set", "issn")
+        .param("verb", "ListRecords")
+        .param("metadataPrefix", "marcxml")
+        .get("/meta-storage/oai")
+        .then().statusCode(400)
+        .contentType("text/plain")
+        .body(is("Transformer not found: doesnotexist"));
+
     //PUT disable the transformer
     JsonObject oaiConfigOff = new JsonObject();
 
