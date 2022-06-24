@@ -252,6 +252,7 @@ public class ModuleTest {
         .put("function", "transform");
     ModuleCache.getInstance().lookup(vertx, TENANT, config).compose(m1 -> {
       ModuleCache.getInstance().purge(TENANT, "marc-transformer");
+      ModuleCache.getInstance().purge(TENANT, "marc-transformer");
       return ModuleCache.getInstance().lookup(vertx, TENANT, config).map(m2 -> m1 == m2);
     })
     .onComplete(context.asyncAssertSuccess(equals -> context.assertFalse(equals)));
