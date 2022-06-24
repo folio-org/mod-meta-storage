@@ -283,7 +283,7 @@ public final class OaiService {
     return "    <metadata>\n" + xmlMetadata + "\n    </metadata>\n";
   }
 
-  static Future<String> getXmlRecordMetadata(RoutingContext ctx, Module module, Storage storage,
+  static Future<String> getXmlRecordMetadata(Module module, Storage storage,
       SqlConnection conn, UUID clusterId, List<String> matchValues) {
     String q = "SELECT * FROM " + storage.getGlobalRecordTable()
         + " LEFT JOIN " + storage.getClusterRecordTable() + " ON record_id = id "
@@ -327,7 +327,7 @@ public final class OaiService {
   }
 
   @java.lang.SuppressWarnings({"squid:S107"})  // too many arguments
-  static Future<String> getXmlRecord(RoutingContext ctx, Module module, Storage storage,
+  static Future<String> getXmlRecord(Module module, Storage storage,
       SqlConnection conn, UUID clusterId, LocalDateTime datestamp, String oaiSet,
       boolean withMetadata) {
     Future<List<String>> clusterValues = Future.succeededFuture(Collections.emptyList());
@@ -337,7 +337,7 @@ public final class OaiService {
     // When false withMetadata could optimize and not join with bibRecordTable
     String begin = withMetadata ? "    <record>\n" : "";
     String end = withMetadata ? "    </record>\n" : "";
-    return clusterValues.compose(values -> getXmlRecordMetadata(ctx, module, storage, conn,
+    return clusterValues.compose(values -> getXmlRecordMetadata(module, storage, conn,
         clusterId, values)
         .map(metadata ->
             begin
@@ -388,7 +388,7 @@ public final class OaiService {
               }
             }
             cnt.incrementAndGet();
-            getXmlRecord(ctx, module, storage, conn, row.getUUID("cluster_id"), datestamp,
+            getXmlRecord(module, storage, conn, row.getUUID("cluster_id"), datestamp,
                 row.getString("match_key_config_id"), withMetadata)
                 .onSuccess(xmlRecord -> response.write(xmlRecord).onComplete(x -> stream.resume()))
                 .onFailure(e -> {
@@ -427,7 +427,7 @@ public final class OaiService {
                   throw OaiException.idDoesNotExist(identifier);
                 }
                 Row row = iterator.next();
-                return getXmlRecord(ctx, module, storage, conn,
+                return getXmlRecord(module, storage, conn,
                     row.getUUID("cluster_id"), row.getLocalDateTime("datestamp"),
                     row.getString("match_key_config_id"), true)
                     .map(xmlRecord -> {
