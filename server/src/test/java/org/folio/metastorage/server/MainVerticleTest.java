@@ -3207,6 +3207,37 @@ public class MainVerticleTest {
         .body("items[0].error", is("Bad marcxml element: foo"))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
         .body("items[0].config.sourceId", is(sourceId1));
+
+    mockBody = """
+<?xml version="1.0"?>
+<OAI-PMH xmlns="http://www.openarchives.org/OAI/2.0/"
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://www.openarchives.org/OAI/2.0/ http://www.openarchives.org/OAI/2.0/OAI-PMH.xsd">
+  <responseDate>2022-06-09T09:54:45Z</responseDate>
+  <request verb="ListRecords" set="isbn" metadataPrefix="marc21">https://localhost/mock/oai</request>
+  <ListRecords>
+  <resumptionToken>MzM5OzE7Ozt2MS4w</resumptionToken></ListRecords>
+  </OAI-PMH>
+        """;
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/start")
+        .then().statusCode(204);
+
+    Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> harvestCompleted(TENANT_1, PMH_CLIENT_ID));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(3))
+        .body("items[0].error", is(nullValue()))
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.sourceId", is(sourceId1));
   }
 
 
