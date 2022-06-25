@@ -2292,7 +2292,7 @@ public class MainVerticleTest {
         .param("metadataPrefix", "marcxml")
         .param("identifier", identifiers.get(0))
         .get("/meta-storage/oai")
-        .then().statusCode(400)
+        .then().statusCode(500)
         .contentType("text/plain")
         .body(containsString("Error"));
 
@@ -2313,7 +2313,17 @@ public class MainVerticleTest {
         .param("verb", "ListRecords")
         .param("metadataPrefix", "marcxml")
         .get("/meta-storage/oai")
-        .then().statusCode(400)
+        .then().statusCode(500)
+        .contentType("text/plain")
+        .body(is("Transformer not found: doesnotexist"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("verb", "GetRecord")
+        .param("metadataPrefix", "marcxml")
+        .param("identifier", identifiers.get(0))
+        .get("/meta-storage/oai")
+        .then().statusCode(500)
         .contentType("text/plain")
         .body(is("Transformer not found: doesnotexist"));
 

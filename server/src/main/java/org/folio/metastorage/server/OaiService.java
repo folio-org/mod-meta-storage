@@ -30,6 +30,7 @@ import org.folio.metastorage.module.ModuleCache;
 import org.folio.metastorage.server.entity.ClusterBuilder;
 import org.folio.metastorage.util.JsonToMarcXml;
 import org.folio.metastorage.util.MarcInJsonUtil;
+import org.folio.okapi.common.HttpResponse;
 import org.folio.tlib.util.TenantUtil;
 
 public final class OaiService {
@@ -79,7 +80,10 @@ public final class OaiService {
   static Future<Void> get(RoutingContext ctx) {
     return getCheck(ctx).recover(e -> {
       if (!(e instanceof OaiException)) {
-        return Future.failedFuture(e);
+        // failedFuture ends up as 400, so we return 500 for this
+        // as OAI errors are "user" errors.
+        HttpResponse.responseError(ctx, 500, e.getMessage());
+        return Future.succeededFuture();
       }
       log.error(e.getMessage(), e);
       oaiHeader(ctx);
