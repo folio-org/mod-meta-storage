@@ -42,6 +42,16 @@ paths:
           $ref: "#/components/responses/trait_404"
         "500":
           $ref: "#/components/responses/trait_500"
+    delete:
+      description: Update OAI configuration.
+      operationId: deleteOaiConfig
+      responses:
+        "204":
+          description: OAI configuration deleted
+        "400":
+          $ref: "#/components/responses/trait_400"
+        "500":
+          $ref: "#/components/responses/trait_500"
   # Configuration
   /meta-storage/config/matchkeys:
     parameters:
@@ -744,7 +754,7 @@ paths:
       - in: path
         name: id
         required: true
-        description: OAI-PMH client identifier; "all" for all clients
+        description: OAI-PMH client identifier; "_all" for all clients
         schema:
           type: string
     post:
@@ -767,7 +777,7 @@ paths:
       - in: path
         name: id
         required: true
-        description: OAI-PMH client identifier; "all" for all clients
+        description: OAI-PMH client identifier; "_all" for all clients
         schema:
           type: string
     post:
@@ -790,7 +800,7 @@ paths:
       - in: path
         name: id
         required: true
-        description: OAI-PMH client identifier; "all" for all clients
+        description: OAI-PMH client identifier; "_all" for all clients
         schema:
           type: string
     get:

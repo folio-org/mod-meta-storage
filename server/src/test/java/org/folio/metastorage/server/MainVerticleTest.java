@@ -9,11 +9,10 @@ import io.restassured.response.Response;
 import io.vertx.core.DeploymentOptions;
 import io.vertx.core.Future;
 import io.vertx.core.Vertx;
-import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpServer;
-import io.vertx.core.http.HttpServerResponse;
 import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
+import io.vertx.core.net.NetServer;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 import io.vertx.ext.web.Router;
@@ -84,10 +83,12 @@ public class MainVerticleTest {
   static final int CODE_MODULES_PORT = 9235;
   static final int MOCK_PORT = 9232;
   static final int UNUSED_PORT = 9233;
+  static final int NET_PORT = 9234;
   static final String MOCK_URL = "http://localhost:" + MOCK_PORT;
   static final String TENANT_1 = "tenant1";
   static final String TENANT_2 = "tenant2";
   static final String PMH_CLIENT_ID = "1";
+  static final String SOURCE_ID_1 = "SOURCE-1";
 
   static int mockStatus;
 
@@ -194,21 +195,12 @@ public class MainVerticleTest {
         c.response().end(mockBody);
       });
     });
-    HttpServer httpServer = Vertx.vertx().createHttpServer().requestHandler(router);
+    HttpServer httpServer = vertx.createHttpServer().requestHandler(router);
     f = f.compose(e -> httpServer.listen(MOCK_PORT).mapEmpty());
-
+    f = f.compose(e -> ModuleScripts.serveModules(vertx, CODE_MODULES_PORT).mapEmpty());
+    NetServer netServer = vertx.createNetServer().connectHandler(socket -> socket.close());
+    f = f.compose(x -> netServer.listen(NET_PORT).mapEmpty());
     f.onComplete(context.asyncAssertSuccess());
-
-    //serve module
-    Router router2 = Router.router(vertx);
-    router2.get("/lib/marc-transformer.mjs").handler(ctx -> {
-      HttpServerResponse response = ctx.response();
-      response.setStatusCode(200);
-      response.putHeader(HttpHeaders.CONTENT_TYPE, "text/plain");
-      response.end(ModuleScripts.TEST_SCRIPT_1);
-    });
-    HttpServer httpServer2 = vertx.createHttpServer();
-    httpServer2.requestHandler(router2).listen(CODE_MODULES_PORT).onComplete(context.asyncAssertSuccess());
   }
 
   @AfterClass
@@ -220,6 +212,11 @@ public class MainVerticleTest {
 
   @After
   public void after(TestContext context) {
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .delete("/meta-storage/config/oai")
+        .then()
+        .statusCode(204);
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .delete("/meta-storage/config/matchkeys/issn");
@@ -867,7 +864,6 @@ public class MainVerticleTest {
   public void testMatchKeysIngest() {
     JsonObject matchKey = createIsbnMatchKey();
 
-    String sourceId1 = "SOURCE-1";
     JsonArray records1 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
@@ -883,12 +879,12 @@ public class MainVerticleTest {
                 .put("inventory", new JsonObject().put("isbn", new JsonArray().add("2").add("3")))
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
-        .param("query", "sourceId=" + sourceId1)
+        .param("query", "sourceId=" + SOURCE_ID_1)
         .get("/meta-storage/records")
         .then().statusCode(200)
         .contentType("application/json")
@@ -897,7 +893,7 @@ public class MainVerticleTest {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
-        .param("query", "sourceId=" + sourceId1)
+        .param("query", "sourceId=" + SOURCE_ID_1)
         .get("/meta-storage/records")
         .then().statusCode(200)
         .contentType("application/json")
@@ -929,12 +925,12 @@ public class MainVerticleTest {
         .extract().body().asString();
     verifyClusterResponse(s, List.of("S102"));
 
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
-        .param("query", "sourceId=" + sourceId1)
+        .param("query", "sourceId=" + SOURCE_ID_1)
         .get("/meta-storage/records")
         .then().statusCode(200)
         .contentType("application/json")
@@ -1035,7 +1031,6 @@ public class MainVerticleTest {
   public void testClustersSameKey() {
     createIssnMatchKey();
 
-    String sourceId1 = "SOURCE-1";
     JsonArray records1 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
@@ -1058,7 +1053,7 @@ public class MainVerticleTest {
                 .put("inventory", new JsonObject().put("issn", new JsonArray().add("1")))
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     String s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -1088,7 +1083,6 @@ public class MainVerticleTest {
   public void testClustersLargeKey() {
     createIssnMatchKey();
 
-    String sourceId1 = "SOURCE-1";
     JsonArray records1 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
@@ -1098,7 +1092,7 @@ public class MainVerticleTest {
                     .put("issn", new JsonArray().add("1".repeat(3600))))
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     String s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -1135,7 +1129,6 @@ public class MainVerticleTest {
     createIsbnMatchKey();
     createIssnMatchKey();
 
-    String sourceId1 = "SOURCE-1";
     JsonArray records1 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
@@ -1158,7 +1151,7 @@ public class MainVerticleTest {
             )
         );
     log.info("phase 1: insert two separate isbn recs, but one with issn");
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     String s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -1226,7 +1219,7 @@ public class MainVerticleTest {
                 .put("inventory", new JsonObject().put("isbn", new JsonArray().add("4")))
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -1261,7 +1254,7 @@ public class MainVerticleTest {
                 .put("inventory", new JsonObject().put("isbn", new JsonArray().add("3")))
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -1310,7 +1303,6 @@ public class MainVerticleTest {
 
     JsonObject matchKey = createIsbnMatchKey();
 
-    String sourceId1 = "SOURCE-1";
     JsonArray records1 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
@@ -1326,7 +1318,7 @@ public class MainVerticleTest {
                 .put("inventory", new JsonObject().put("isbn", new JsonArray().add("2")))
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -1407,7 +1399,6 @@ public class MainVerticleTest {
   public void testEmptyMatchKeys() {
     JsonObject matchKey = createIsbnMatchKey();
 
-    String sourceId1 = "SOURCE-1";
     JsonArray records1 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
@@ -1430,7 +1421,7 @@ public class MainVerticleTest {
                 .put("inventory", new JsonObject().put("isbn", new JsonArray()))
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -1459,7 +1450,7 @@ public class MainVerticleTest {
                 .put("inventory", new JsonObject().put("isbn", new JsonArray().add("1")))
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
@@ -1488,7 +1479,6 @@ public class MainVerticleTest {
   public void testMatchKeysManual() {
     JsonObject matchKey = createIsbnMatchKey("manual");
 
-    String sourceId1 = "SOURCE-1";
     JsonArray records1 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
@@ -1504,7 +1494,7 @@ public class MainVerticleTest {
                 .put("inventory", new JsonObject().put("isbn", new JsonArray().add("2")))
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     // populate first time
     RestAssured.given()
@@ -1520,7 +1510,7 @@ public class MainVerticleTest {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
-        .param("query", "sourceId=" + sourceId1)
+        .param("query", "sourceId=" + SOURCE_ID_1)
         .get("/meta-storage/records")
         .then().statusCode(200)
         .contentType("application/json")
@@ -1604,7 +1594,7 @@ public class MainVerticleTest {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
-        .param("query", "localId=S101 and sourceId=" + sourceId1)
+        .param("query", "localId=S101 and sourceId=" + SOURCE_ID_1)
         .get("/meta-storage/records")
         .then().statusCode(200)
         .contentType("application/json")
@@ -1738,7 +1728,16 @@ public class MainVerticleTest {
         .body("modules", is(empty()))
         .body("resultInfo.totalRecords", is(0));
 
-    CodeModuleEntity module = new CodeModuleEntity("oai-transform", "url", "transform");
+    //POST item with bad url and nothing should be created
+    CodeModuleEntity badModule = new CodeModuleEntity("empty",  "url", "transform");
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(badModule.asJson().encode())
+        .post("/meta-storage/config/modules")
+        .then().statusCode(400);
+
+    CodeModuleEntity module = new CodeModuleEntity("empty",  "http://localhost:" + CODE_MODULES_PORT + "/lib/empty.mjs", "transform");
 
     //GET not found item
     RestAssured.given()
@@ -1919,7 +1918,6 @@ public class MainVerticleTest {
 
     createIssnMatchKey();
 
-    String sourceId1 = "SOURCE-1";
     JsonArray ingest1a = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
@@ -1979,8 +1977,8 @@ public class MainVerticleTest {
             )
         );
     //post records individually, otherwise the order of clusters and records in clusters is non-deterministic
-    ingestRecords(ingest1a, sourceId1);
-    ingestRecords(ingest1b, sourceId1);
+    ingestRecords(ingest1a, SOURCE_ID_1);
+    ingestRecords(ingest1b, SOURCE_ID_1);
 
     JsonArray expectedIssn = new JsonArray()
       .add(new JsonObject()
@@ -2142,26 +2140,23 @@ public class MainVerticleTest {
         .extract().body().asString();
     verifyOaiResponse(s, "ListRecords", identifiers, 2, expectedIsbn);
 
+    //configure transformers
+    for (String m : List.of("marc-transformer", "empty", "throw")) {
+      CodeModuleEntity module = new CodeModuleEntity(
+          m, "http://localhost:" + CODE_MODULES_PORT + "/lib/" + m + ".mjs", "transform");
 
-    //configure transformer
-
-    CodeModuleEntity module = new CodeModuleEntity(
-        "marc-transformer",
-        "http://localhost:" + CODE_MODULES_PORT + "/lib/marc-transformer.mjs",
-        "transform");
-
-    //POST module configuration
-    RestAssured.given()
-        .header(XOkapiHeaders.TENANT, tenant1)
-        .header("Content-Type", "application/json")
-        .body(module.asJson().encode())
-        .post("/meta-storage/config/modules")
-        .then().statusCode(201)
-        .contentType("application/json")
-        .body(Matchers.is(module.asJson().encode()));
+      //POST module configuration
+      RestAssured.given()
+          .header(XOkapiHeaders.TENANT, tenant1)
+          .header("Content-Type", "application/json")
+          .body(module.asJson().encode())
+          .post("/meta-storage/config/modules")
+          .then().statusCode(201)
+          .contentType("application/json")
+          .body(Matchers.is(module.asJson().encode()));
+    }
 
     //PUT oai configuration
-
     JsonObject oaiConfig = new JsonObject()
         .put("transformer", "marc-transformer");;
 
@@ -2242,10 +2237,93 @@ public class MainVerticleTest {
         .extract().body().asString();
     verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn2);
 
-    //PUT disable the transformer
+    oaiConfig = new JsonObject()
+        .put("transformer", "empty");
 
-    JsonObject oaiConfigOff = new JsonObject()
-      .put("transformer", "");;
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiConfig.encode())
+        .put("/meta-storage/config/oai")
+        .then()
+        .statusCode(204);
+
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .param("set", "issn")
+        .param("verb", "ListRecords")
+        .param("metadataPrefix", "marcxml")
+        .get("/meta-storage/oai")
+        .then().statusCode(200)
+        .contentType("text/xml")
+        .extract().body().asString();
+
+    verifyOaiResponse(s, "ListRecords", identifiers, 1, null);
+
+    oaiConfig = new JsonObject()
+        .put("transformer", "throw");;
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiConfig.encode())
+        .put("/meta-storage/config/oai")
+        .then()
+        .statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .param("set", "issn")
+        .param("verb", "ListRecords")
+        .param("metadataPrefix", "marcxml")
+        .get("/meta-storage/oai")
+        .then().statusCode(200)
+        .contentType("text/xml")
+        .body(containsString("<!-- Failed to produce record: Error -->"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("verb", "GetRecord")
+        .param("metadataPrefix", "marcxml")
+        .param("identifier", identifiers.get(0))
+        .get("/meta-storage/oai")
+        .then().statusCode(500)
+        .contentType("text/plain")
+        .body(containsString("Error"));
+
+    // OAI config with unknown transformer
+    JsonObject oaiConfigBadTransformer = new JsonObject()
+        .put("transformer", "doesnotexist");
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiConfigBadTransformer.encode())
+        .put("/meta-storage/config/oai")
+        .then()
+        .statusCode(204);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .param("set", "issn")
+        .param("verb", "ListRecords")
+        .param("metadataPrefix", "marcxml")
+        .get("/meta-storage/oai")
+        .then().statusCode(500)
+        .contentType("text/plain")
+        .body(is("Transformer not found: doesnotexist"));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("verb", "GetRecord")
+        .param("metadataPrefix", "marcxml")
+        .param("identifier", identifiers.get(0))
+        .get("/meta-storage/oai")
+        .then().statusCode(500)
+        .contentType("text/plain")
+        .body(is("Transformer not found: doesnotexist"));
+
+    //PUT disable the transformer
+    JsonObject oaiConfigOff = new JsonObject();
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -2270,7 +2348,7 @@ public class MainVerticleTest {
                 )
             )
         );
-    ingestRecords(ingest2, sourceId1);
+    ingestRecords(ingest2, SOURCE_ID_1);
 
 
     s = RestAssured.given()
@@ -2323,7 +2401,6 @@ public class MainVerticleTest {
     List<String> identifiers = new LinkedList<>();
     String s;
 
-    String sourceId1 = "SOURCE-1";
     JsonArray records1 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
@@ -2354,7 +2431,7 @@ public class MainVerticleTest {
       .add(new JsonObject().put("leader", "00914naa  2200337   450 "))
       .add(new JsonObject().put("leader", "00914naa  2200337   450 "));
 
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
     String time2 = Instant.now(Clock.systemUTC()).truncatedTo(ChronoUnit.SECONDS).toString();
     TimeUnit.SECONDS.sleep(1);
     String time3 = Instant.now(Clock.systemUTC()).truncatedTo(ChronoUnit.SECONDS).toString();
@@ -2393,7 +2470,7 @@ public class MainVerticleTest {
         .extract().body().asString();
     verifyOaiResponse(s, "ListRecords", identifiers, 0, null);
 
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .param("verb", "ListRecords")
@@ -2424,7 +2501,7 @@ public class MainVerticleTest {
             .put("delete", true)
         );
 
-    ingestRecords(records2, sourceId1);
+    ingestRecords(records2, SOURCE_ID_1);
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2448,7 +2525,7 @@ public class MainVerticleTest {
                 .put("inventory", new JsonObject().put("isbn", new JsonArray().add("1").add("2")))
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2478,7 +2555,6 @@ public class MainVerticleTest {
   public void testOaiResumptionToken() throws XMLStreamException, IOException, SAXException {
     createIsbnMatchKey();
 
-    String sourceId1 = "SOURCE-1";
     for (int i = 0; i < 10; i++) {
       JsonArray records1 = new JsonArray()
           .add(new JsonObject()
@@ -2488,7 +2564,7 @@ public class MainVerticleTest {
                   .put("inventory", new JsonObject().put("isbn", new JsonArray().add(Integer.toString(i))))
               )
           );
-      ingestRecords(records1, sourceId1);
+      ingestRecords(records1, SOURCE_ID_1);
     }
     List<String> identifiers = new LinkedList<>();
 
@@ -2563,7 +2639,6 @@ public class MainVerticleTest {
         .body("clustersTotal", is(0))
     ;
 
-    String sourceId1 = "SOURCE-1";
     JsonArray records1 = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S101")
@@ -2616,7 +2691,7 @@ public class MainVerticleTest {
                 .put("inventory", new JsonObject())
             )
         );
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2798,8 +2873,6 @@ public class MainVerticleTest {
 
   @Test
   public void oaiPmhClientJobs() {
-    String sourceId1 = "SOURCE-1";
-
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/start")
@@ -2824,7 +2897,7 @@ public class MainVerticleTest {
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", "http://localhost:" + MODULE_PORT + "/meta-storage/oai")
         .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
-        .put("sourceId", sourceId1)
+        .put("sourceId", SOURCE_ID_1)
         .put("set", "set1")
         .put("id", PMH_CLIENT_ID);
 
@@ -2846,7 +2919,7 @@ public class MainVerticleTest {
         .body("items[0].totalRecords", is(0))
         .body("items[0].totalRequests", is(0))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
 
         RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2911,7 +2984,6 @@ public class MainVerticleTest {
   public void oaiPmhClientFetch()  {
     createIsbnMatchKey();
 
-    String sourceId1 = "SOURCE-1";
     JsonArray records1 = new JsonArray();
     for (int i = 0; i < 10; i++) {
           records1.add(new JsonObject()
@@ -2922,7 +2994,7 @@ public class MainVerticleTest {
               )
           );
     }
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     /* harvest records from tenant1 and store them in tenant2 */
     JsonObject oaiPmhClient = new JsonObject()
@@ -2930,7 +3002,7 @@ public class MainVerticleTest {
         .put("set", "isbn")
         .put("params", new JsonObject().put("limit", "4"))
         .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
-        .put("sourceId", sourceId1)
+        .put("sourceId", SOURCE_ID_1)
         .put("id", PMH_CLIENT_ID);
 
     RestAssured.given()
@@ -2962,7 +3034,7 @@ public class MainVerticleTest {
         .body("items[0].config.resumptionToken", is(nullValue()))
         .body("items[0].config.from", hasLength(20))
         .body("items[0].config.until", is(nullValue()))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_2)
@@ -2972,7 +3044,7 @@ public class MainVerticleTest {
         .body("resumptionToken", is(nullValue()))
         .body("from", hasLength(20))
         .body("until", is(nullValue()))
-        .body("sourceId", is(sourceId1));
+        .body("sourceId", is(SOURCE_ID_1));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_2)
@@ -2989,7 +3061,7 @@ public class MainVerticleTest {
               .put("delete", true)
           );
     }
-    ingestRecords(records1, sourceId1);
+    ingestRecords(records1, SOURCE_ID_1);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_2)
@@ -3008,7 +3080,7 @@ public class MainVerticleTest {
         .body("items[0].config.resumptionToken", is(nullValue()))
         .body("items[0].config.from", hasLength(20))
         .body("items[0].config.until", is(nullValue()))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_2)
@@ -3021,15 +3093,13 @@ public class MainVerticleTest {
 
   @Test
   public void oaiPmhClientNoServer() {
-    String sourceId1 = "SOURCE-1";
-
     createIsbnMatchKey();
 
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", "http://localhost:" + UNUSED_PORT + "/meta-storage/oai")
         .put("set", "isbn")
         .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
-        .put("sourceId", sourceId1)
+        .put("sourceId", SOURCE_ID_1)
         .put("id", PMH_CLIENT_ID);
 
     RestAssured.given()
@@ -3058,19 +3128,58 @@ public class MainVerticleTest {
         .body("items[0].totalRequests", is(0))
         .body("items[0].error", containsString("localhost"))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
+  }
+
+  @Test
+  public void oaiPmhClientConnectionClosed() {
+    createIsbnMatchKey();
+
+    JsonObject oaiPmhClient = new JsonObject()
+        .put("url", "http://localhost:" + NET_PORT + "/mock/oai")
+        .put("set", "isbn")
+        .put("sourceId", SOURCE_ID_1)
+        .put("waitRetries", 1)
+        .put("numberRetries", 1)
+        .put("id", PMH_CLIENT_ID);
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .post("/meta-storage/pmh-clients")
+        .then().statusCode(201)
+        .contentType("application/json")
+        .body(Matchers.is(oaiPmhClient.encode()));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .post("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/start")
+        .then().statusCode(204);
+
+    Awaitility.await().atMost(Duration.ofSeconds(3)).until(() -> harvestCompleted(TENANT_1, PMH_CLIENT_ID));
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID + "/status")
+        .then().statusCode(200)
+        .contentType("application/json")
+        .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(0))
+        .body("items[0].totalRequests", is(0))
+        .body("items[0].error", is("Connection was closed"))
+        .body("items[0].config.id", is(PMH_CLIENT_ID))
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
 
   @Test
   public void oaiPmhClientHttpStatus() {
-    String sourceId1 = "SOURCE-1";
-
     createIsbnMatchKey();
 
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", MOCK_URL + "/mock/oai")
         .put("set", "isbn")
-        .put("sourceId", sourceId1)
+        .put("sourceId", SOURCE_ID_1)
         .put("id", PMH_CLIENT_ID);
 
     RestAssured.given()
@@ -3103,19 +3212,17 @@ public class MainVerticleTest {
         .body("items[0].totalRequests", is(1))
         .body("items[0].error", containsString("HTTP status 400: mock error"))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
 
   @Test
   public void oaiPmhClientHttpBadXml() {
-    String sourceId1 = "SOURCE-1";
-
     createIsbnMatchKey();
 
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", MOCK_URL + "/mock/oai")
         .put("set", "isbn")
-        .put("sourceId", sourceId1)
+        .put("sourceId", SOURCE_ID_1)
         .put("id", PMH_CLIENT_ID);
 
     RestAssured.given()
@@ -3148,20 +3255,18 @@ public class MainVerticleTest {
         .body("items[0].totalRequests", is(1))
         .body("items[0].error", is(nullValue())) // error should be reported
         .body("items[0].config.id", is(PMH_CLIENT_ID))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
 
   @Test
   public void oaiPmhClientHttpBadMetadata() {
-    String sourceId1 = "SOURCE-1";
-
     createIsbnMatchKey();
 
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", MOCK_URL + "/mock/oai")
         .put("set", "isbn")
         .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
-        .put("sourceId", sourceId1)
+        .put("sourceId", SOURCE_ID_1)
         .put("id", PMH_CLIENT_ID);
 
     RestAssured.given()
@@ -3206,7 +3311,7 @@ public class MainVerticleTest {
         .body("items[0].totalRequests", is(1))
         .body("items[0].error", is("Bad marcxml element: foo"))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
 
     mockBody = """
 <?xml version="1.0"?>
@@ -3237,21 +3342,18 @@ public class MainVerticleTest {
         .body("items[0].totalRequests", is(3))
         .body("items[0].error", is(nullValue()))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
-
 
   @Test
   public void oaiPmhClientSameResumptionToken() {
-    String sourceId1 = "SOURCE-1";
-
     createIsbnMatchKey();
 
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", MOCK_URL + "/mock/oai")
         .put("set", "isbn")
         .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
-        .put("sourceId", sourceId1)
+        .put("sourceId", SOURCE_ID_1)
         .put("id", PMH_CLIENT_ID);
 
     RestAssured.given()
@@ -3293,14 +3395,12 @@ public class MainVerticleTest {
         .body("items[0].totalRecords", is(0))
         .body("items[0].totalRequests", is(2))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
 
 
   @Test
   public void oaiPmhClientStop() {
-    String sourceId1 = "SOURCE-1";
-
     createIsbnMatchKey();
 
     RestAssured.given()
@@ -3313,7 +3413,7 @@ public class MainVerticleTest {
         .put("url", MOCK_URL + "/mock/oai")
         .put("set", "isbn")
         .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
-        .put("sourceId", sourceId1)
+        .put("sourceId", SOURCE_ID_1)
         .put("id", PMH_CLIENT_ID);
 
     RestAssured.given()
@@ -3366,32 +3466,49 @@ public class MainVerticleTest {
         .body("items[0].totalRecords", is(0))
         .body("items[0].totalRequests", is(1))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
+  }
+
+  @Test
+  public void oaiPmhClientAllIllegal() {
+    JsonObject oaiPmhClient = new JsonObject()
+        .put("url", MOCK_URL + "/mock/oai")
+        .put("set", "isbn")
+        .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
+        .put("sourceId", SOURCE_ID_1)
+        .put("id", "_all");
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .post("/meta-storage/pmh-clients")
+        .then().statusCode(400)
+        .contentType("text/plain")
+        .body(is("Invalid value for OAI PMH client identifier: _all"));
   }
 
   @Test
   public void oaiPmhClientAll() {
-    String sourceId1 = "SOURCE-1";
-
     createIsbnMatchKey();
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
-        .get("/meta-storage/pmh-clients/all/status")
+        .get("/meta-storage/pmh-clients/_all/status")
         .then().statusCode(200)
         .contentType("application/json")
         .body("items", hasSize(0));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
-        .post("/meta-storage/pmh-clients/all/stop")
+        .post("/meta-storage/pmh-clients/_all/stop")
         .then().statusCode(204);
 
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", MOCK_URL + "/mock/oai")
         .put("set", "isbn")
         .put("headers", new JsonObject().put(XOkapiHeaders.TENANT, TENANT_1))
-        .put("sourceId", sourceId1)
+        .put("sourceId", SOURCE_ID_1)
         .put("id", PMH_CLIENT_ID);
 
     RestAssured.given()
@@ -3419,31 +3536,31 @@ public class MainVerticleTest {
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
-        .post("/meta-storage/pmh-clients/all/stop")
+        .post("/meta-storage/pmh-clients/_all/stop")
         .then().statusCode(204);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
-        .post("/meta-storage/pmh-clients/all/start")
+        .post("/meta-storage/pmh-clients/_all/start")
         .then().statusCode(204);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
-        .post("/meta-storage/pmh-clients/all/stop")
+        .post("/meta-storage/pmh-clients/_all/stop")
         .then().statusCode(204);
 
     Awaitility.await().atMost(Duration.ofSeconds(2)).until(() -> harvestCompleted(TENANT_1, PMH_CLIENT_ID));
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
-        .get("/meta-storage/pmh-clients/all/status")
+        .get("/meta-storage/pmh-clients/_all/status")
         .then().statusCode(200)
         .contentType("application/json")
         .body("items[0].status", is("idle"))
         .body("items[0].totalRecords", is(0))
         .body("items[0].totalRequests", is(1))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
-        .body("items[0].config.sourceId", is(sourceId1));
+        .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
 
 }

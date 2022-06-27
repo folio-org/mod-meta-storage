@@ -5,6 +5,7 @@ import io.vertx.core.Future;
 import io.vertx.core.MultiMap;
 import io.vertx.core.Promise;
 import io.vertx.core.Vertx;
+import io.vertx.core.VertxException;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpClient;
 import io.vertx.core.http.HttpClientRequest;
@@ -58,7 +59,7 @@ public class OaiPmhClientService {
 
   private static final String B_WHERE_ID1_LITERAL = " WHERE ID = $1";
 
-  private static final String CLIENT_ID_ALL = "all";
+  private static final String CLIENT_ID_ALL = "_all";
 
   private static final Logger log = LogManager.getLogger(OaiPmhClientService.class);
 
@@ -78,6 +79,9 @@ public class OaiPmhClientService {
     JsonObject config = ctx.getBodyAsJson();
 
     String id = config.getString("id");
+    if (CLIENT_ID_ALL.equals(id)) {
+      return Future.failedFuture("Invalid value for OAI PMH client identifier: " + id);
+    }
     config.remove("id");
     return storage.getPool().preparedQuery("INSERT INTO " + storage.getOaiPmhClientTable()
             + " (id, config)"
@@ -326,7 +330,7 @@ public class OaiPmhClientService {
     job.put(STATUS_LITERAL, RUNNING_LITERAL);
     UUID owner = UUID.randomUUID();
     return updateJob(storage, id, null, job, Boolean.FALSE, owner)
-        .onSuccess(x -> oaiHarvestLoop(storage, id, job, owner))
+        .onSuccess(x -> oaiHarvestLoop(storage, id, job, owner, 0))
         .mapEmpty();
   }
 
@@ -551,7 +555,7 @@ public class OaiPmhClientService {
     return promise.future();
   }
 
-  void oaiHarvestLoop(Storage storage, String id, JsonObject job, UUID owner) {
+  void oaiHarvestLoop(Storage storage, String id, JsonObject job, UUID owner, int retries) {
     JsonObject config = job.getJsonObject(CONFIG_LITERAL);
     log.info("harvest loop id={} owner={}", id, owner);
     getStopOwner(storage, id)
@@ -559,7 +563,7 @@ public class OaiPmhClientService {
           if (!row.getUUID("owner").equals(owner)) {
             return;
           }
-          Future<Void> f;
+          Future<Integer> f;
           job.remove("error");
           if (Boolean.TRUE.equals(row.getBoolean("stop"))) {
             f = Future.failedFuture((String) null);
@@ -568,13 +572,24 @@ public class OaiPmhClientService {
                 .compose(matchKeyConfigs ->
                     listRecordsRequest(config)
                         .compose(res ->
-                            listRecordsResponse(storage, job, config, matchKeyConfigs, res)));
+                            listRecordsResponse(storage, job, config, matchKeyConfigs, res)))
+                .map(0)
+                .recover(e -> {
+                  if (e instanceof VertxException && "Connection was closed".equals(e.getMessage())
+                      && retries < config.getInteger("numberRetries", 3)) {
+                    Promise<Integer> promise = Promise.promise();
+                    long w = config.getInteger("waitRetries", 10);
+                    vertx.setTimer(1000 * w, x -> promise.complete(retries + 1));
+                    return promise.future();
+                  }
+                  return Future.failedFuture(e);
+                });
           }
-          f.compose(x ->
+          f.compose(newRetries ->
                   // continue harvesting
                   updateJob(storage, id, config, job, null, null)
                       // only continue if we can also save job
-                      .onSuccess(x1 -> oaiHarvestLoop(storage, id, job, owner))
+                      .onSuccess(x1 -> oaiHarvestLoop(storage, id, job, owner, newRetries))
               )
               .onFailure(e -> {
                 // stop either due to error or no resumption token or "stop"
