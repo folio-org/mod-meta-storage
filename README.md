@@ -119,7 +119,7 @@ Start a job with:
 
 Start all jobs with:
 
-    curl -HX-Okapi-Tenant:$OKAPI_TENANT -XPOST $OKAPI_URL/meta-storage/pmh-clients/all/start
+    curl -HX-Okapi-Tenant:$OKAPI_TENANT -XPOST $OKAPI_URL/meta-storage/pmh-clients/_all/start
 
 Each job will continue until the server returns error or returns no resumption token. The `from`
 property of the configuration is populated with latest datestamp in records received. This enables
@@ -132,7 +132,7 @@ Get status for a job with:
 
 Get status for all jobs with:
 
-    curl -HX-Okapi-Tenant:$OKAPI_TENANT $OKAPI_URL/meta-storage/pmh-clients/all/status
+    curl -HX-Okapi-Tenant:$OKAPI_TENANT $OKAPI_URL/meta-storage/pmh-clients/_all/status
 
 Stop a job with:
 
@@ -140,7 +140,7 @@ Stop a job with:
 
 Stop all jobs with:
 
-    curl -HX-Okapi-Tenant:$OKAPI_TENANT -XPOST $OKAPI_URL/meta-storage/pmh-clients/all/stop
+    curl -HX-Okapi-Tenant:$OKAPI_TENANT -XPOST $OKAPI_URL/meta-storage/pmh-clients/_all/stop
 
 ## Additional information
 
