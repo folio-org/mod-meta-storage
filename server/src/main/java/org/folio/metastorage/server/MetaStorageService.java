@@ -58,14 +58,15 @@ public class MetaStorageService implements RouterCreator, TenantInitHooks {
     String id = Util.getParameterString(params.pathParameter("id"));
     Storage storage = new Storage(ctx);
     return storage.selectCodeModuleEntity(id)
-        .onSuccess(e -> {
-          if (e == null) {
+        .compose(res -> {
+          if (res == null) {
             HttpResponse.responseError(ctx, 404,
                 String.format(ENTITY_ID_NOT_FOUND_PATTERN, MODULE_LABEL, id));
-            return;
+            return Future.succeededFuture();
           }
           ModuleCache.getInstance().purge(TenantUtil.tenant(ctx), id);
-          ctx.response().setStatusCode(204).end();
+          return ModuleCache.getInstance().lookup(vertx, TenantUtil.tenant(ctx), res.asJson())
+                  .onSuccess(x -> ctx.response().setStatusCode(204).end());
         })
         .mapEmpty();
   }
