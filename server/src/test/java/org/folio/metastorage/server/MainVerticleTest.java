@@ -65,6 +65,7 @@ import org.xml.sax.SAXException;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -3464,7 +3465,7 @@ public class MainVerticleTest {
         .contentType("application/json")
         .body("items[0].status", is("idle"))
         .body("items[0].totalRecords", is(0))
-        .body("items[0].totalRequests", is(1))
+        .body("items[0].totalRequests", greaterThanOrEqualTo(1))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
         .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
@@ -3558,7 +3559,7 @@ public class MainVerticleTest {
         .contentType("application/json")
         .body("items[0].status", is("idle"))
         .body("items[0].totalRecords", is(0))
-        .body("items[0].totalRequests", is(1))
+        .body("items[0].totalRequests", greaterThanOrEqualTo(1))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
         .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
