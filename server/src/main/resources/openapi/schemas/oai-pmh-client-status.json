@@ -26,11 +26,6 @@
             "description" : "Average records per second for the last run",
             "type" : "integer"
           },
-          "lastStartedTimestamp" : {
-            "description" : "Timestamp when the job was last started",
-            "type" : "string",
-            "format" : "date-time"
-          },
           "lastRunningTime" : {
             "description" : "Measured from when the job is last (re)started. Not cleared",
             "type" : "integer"
@@ -38,6 +33,11 @@
           "lastTotalRecords" : {
             "description" : "Records retrieved during last run",
             "type" : "integer"
+          },
+          "lastStartedTimestamp" : {
+            "description" : "Timestamp when the job was last started",
+            "type" : "string",
+            "format" : "date-time"
           },
           "status": {
             "description" : "OAI PMH job status",
