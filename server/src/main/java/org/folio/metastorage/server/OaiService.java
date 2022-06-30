@@ -186,7 +186,7 @@ public final class OaiService {
       sqlQuery.append(" ORDER BY datestamp");
       return getTransformerModule(storage, ctx)
           .compose(module -> storage.getPool().getConnection().compose(conn ->
-              listRecordsResponse(ctx, module, storage, conn, sqlQuery.toString(),
+              listRecordsResponse2(ctx, module, storage, conn, sqlQuery.toString(),
                   Tuple.from(tupleList), limit, withMetadata, resumptionToken)
           ));
     });
@@ -194,6 +194,7 @@ public final class OaiService {
 
   private static void endListResponse(RoutingContext ctx, SqlConnection conn, Transaction tx,
       String elem) {
+    log.info("endListResponse");
     tx.commit().compose(y -> conn.close());
     HttpServerResponse response = ctx.response();
     if (!response.headWritten()) { // no records returned is an error which is so weird.
@@ -231,14 +232,12 @@ public final class OaiService {
         .matchValues(matchValues);
 
     if (module == null) {
-      return Future.succeededFuture(getMetadata(rowSet, clusterId, matchValues));
+      return Future.succeededFuture(getMetadata(cb.build()));
     }
     return module.execute(cb.build())
         .onFailure(e -> log.error("module.execute {}", e.getMessage(), e))
-        .map(processed ->
-            "    <metadata>\n" + JsonToMarcXml.convert(processed) + "\n    </metadata>\n");
+        .map(processed -> JsonToMarcXml.convert(processed));
   }
-
 
   /**
    * Construct metadata record XML string.
@@ -248,22 +247,24 @@ public final class OaiService {
    *
    * <p>999 ind1=0 ind2=0 has holding information. Not complete yet.
    *
-   * @param rowSet global_records rowSet (empty if no record entries: deleted)
-   * @param clusterId cluster identifier that this record is part of
-   * @param matchValues match values for this cluster
+   * @param clusterJson ClusterBuilder.build output
    * @return metadata record string; null if it's deleted record
    */
-  static String getMetadata(RowSet<Row> rowSet, UUID clusterId, List<String> matchValues) {
+  static String getMetadata(JsonObject clusterJson) {
     JsonArray identifiersField = new JsonArray();
-    identifiersField.add(new JsonObject().put("i", clusterId.toString()));
-    for (String matchValue : matchValues) {
+    identifiersField.add(new JsonObject()
+        .put("i", clusterJson.getString(ClusterBuilder.CLUSTER_ID_LABEL)));
+    JsonArray matchValues = clusterJson.getJsonArray(ClusterBuilder.MATCH_VALUES_LABEL);
+    for (int i = 0; i < matchValues.size(); i++) {
+      String matchValue = matchValues.getString(i);
       identifiersField.add(new JsonObject().put("m", matchValue));
     }
+    JsonArray records = clusterJson.getJsonArray("records");
     JsonObject combinedMarc = null;
-    RowIterator<Row> iterator = rowSet.iterator();
-    while (iterator.hasNext()) {
-      Row row = iterator.next();
-      JsonObject thisMarc = row.getJsonObject("payload").getJsonObject("marc");
+    for (int i = 0; i < records.size(); i++) {
+      JsonObject clusterRecord = records.getJsonObject(i);
+      JsonObject thisMarc = clusterRecord.getJsonObject(ClusterBuilder.PAYLOAD_LABEL)
+          .getJsonObject("marc");
       JsonArray f999 = MarcInJsonUtil.lookupMarcDataField(thisMarc, "999", " ", " ");
       if (combinedMarc == null) {
         combinedMarc = thisMarc;
@@ -275,16 +276,15 @@ public final class OaiService {
         }
       }
       identifiersField.add(new JsonObject()
-          .put("l", row.getString("local_id")));
+          .put("l", clusterRecord.getString(ClusterBuilder.LOCAL_ID_LABEL)));
       identifiersField.add(new JsonObject()
-          .put("s", row.getString("source_id")));
+          .put("s", clusterRecord.getString(ClusterBuilder.SOURCE_ID_LABEL)));
     }
     if (combinedMarc == null) {
       return null; // a deleted record
     }
     MarcInJsonUtil.createMarcDataField(combinedMarc, "999", "1", "0").addAll(identifiersField);
-    String xmlMetadata = JsonToMarcXml.convert(combinedMarc);
-    return "    <metadata>\n" + xmlMetadata + "\n    </metadata>\n";
+    return JsonToMarcXml.convert(combinedMarc);
   }
 
   static Future<String> getXmlRecordMetadata(Module module, Storage storage,
@@ -353,8 +353,40 @@ public final class OaiService {
                 + "</datestamp>\n"
                 + "        <setSpec>" + encodeXmlText(oaiSet) + "</setSpec>\n"
                 + "      </header>\n"
-                + (withMetadata && metadata != null ? metadata : "")
+                + (withMetadata && metadata != null
+                ? "    <metadata>\n" + metadata + "\n"
+                + "    </metadata>\n"
+                : "")
                 + end));
+  }
+
+  static Future<Void> populateCluster(Storage storage,
+      SqlConnection conn, ClusterRecord cr, boolean withMetadata) {
+    Future<List<String>> clusterValues = Future.succeededFuture(Collections.emptyList());
+    if (withMetadata) {
+      clusterValues = getClusterValues(storage, conn, cr.clusterId);
+    }
+    return clusterValues.compose(values -> {
+      cr.clusterValues = values;
+      return populateCluster2(storage, conn, cr);
+    });
+  }
+
+  static Future<Void> populateCluster2(Storage storage, SqlConnection conn, ClusterRecord cr) {
+    String q = "SELECT * FROM " + storage.getGlobalRecordTable()
+        + " LEFT JOIN " + storage.getClusterRecordTable() + " ON record_id = id "
+        + " WHERE cluster_id = $1";
+    return conn.preparedQuery(q)
+        .execute(Tuple.of(cr.clusterId))
+        .map(rowSet -> {
+          if (rowSet.size() == 0) {
+            return null;
+          }
+          cr.cb = new ClusterBuilder(cr.clusterId)
+              .records(rowSet)
+              .matchValues(cr.clusterValues);
+          return null;
+        });
   }
 
   static void writeResumptionToken(RoutingContext ctx, ResumptionToken token) {
@@ -364,7 +396,6 @@ public final class OaiService {
     response.write("</resumptionToken>\n");
   }
 
-  @java.lang.SuppressWarnings({"squid:S107"})  // too many arguments
   static Future<Void> listRecordsResponse(RoutingContext ctx, Module module, Storage storage,
       SqlConnection conn, String sqlQuery, Tuple tuple, Integer limit, boolean withMetadata,
       ResumptionToken token) {
@@ -403,6 +434,68 @@ public final class OaiService {
                 });
           });
           stream.endHandler(end -> endListResponse(ctx, conn, tx, elem));
+          stream.exceptionHandler(e -> {
+            log.error("stream error {}", e.getMessage(), e);
+            endListResponse(ctx, conn, tx, elem);
+          });
+          return Future.succeededFuture();
+        })
+    );
+  }
+
+
+
+  @java.lang.SuppressWarnings({"squid:S107"})  // too many arguments
+  static Future<Void> listRecordsResponse2(RoutingContext ctx, Module module, Storage storage,
+      SqlConnection conn, String sqlQuery, Tuple tuple, Integer limit, boolean withMetadata,
+      ResumptionToken token) {
+
+    String elem = withMetadata ? "ListRecords" : "ListIdentifiers";
+    return conn.prepare(sqlQuery).compose(pq ->
+        conn.begin().compose(tx -> {
+          HttpServerResponse response = ctx.response();
+          ClusterRecordStream clusterRecordStream = new ClusterRecordStream(response, module, withMetadata);
+          RowStream<Row> stream = pq.createStream(100, tuple);
+          AtomicInteger cnt = new AtomicInteger();
+          clusterRecordStream.drainHandler(x -> stream.resume());
+          stream.handler(row -> {
+                stream.pause();
+                if (cnt.get() == 0) {
+                  oaiHeader(ctx);
+                  response.write("  <" + elem + ">\n");
+                }
+                LocalDateTime datestamp = row.getLocalDateTime("datestamp");
+                if (token.getFrom() == null || datestamp.isAfter(token.getFrom())) {
+                  token.setFrom(datestamp);
+                  if (cnt.get() >= limit) {
+                    clusterRecordStream.end().onComplete(y -> {
+                      writeResumptionToken(ctx, token);
+                      stream.close();
+                      endListResponse(ctx, conn, tx, elem);
+                    });
+                    return;
+                  }
+                }
+                cnt.incrementAndGet();
+                ClusterRecord cr = new ClusterRecord();
+                cr.clusterId = row.getUUID("cluster_id");
+                cr.datestamp = datestamp;
+                cr.oaiSet = row.getString("match_key_config_id");
+
+                populateCluster(storage, conn, cr, withMetadata)
+                    .onSuccess(x -> {
+                      clusterRecordStream.write(cr);
+                      if (!clusterRecordStream.writeQueueFull()) {
+                        stream.resume();
+                      }
+                    })
+                    .onFailure(e ->
+                      log.error("populateCluster failed: {}", e.getMessage(), e)
+                    );
+              });
+          stream.endHandler(end ->
+            clusterRecordStream.end()
+                .onComplete(y -> endListResponse(ctx, conn, tx, elem)));
           stream.exceptionHandler(e -> {
             log.error("stream error {}", e.getMessage(), e);
             endListResponse(ctx, conn, tx, elem);
