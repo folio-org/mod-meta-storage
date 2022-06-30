@@ -66,18 +66,20 @@ public class EsModuleImpl implements Module {
 
   @Override
   public Future<JsonObject> execute(JsonObject input) {
-    Value output = function.execute(input.encode());
-    if (output.isString()) {
-      //only support string encoded JSON objects for now
-      try {
-        return Future.succeededFuture(new JsonObject(output.asString()));
-      } catch (DecodeException de) {
-        return Future.failedFuture(de);
+    return Vertx.currentContext().executeBlocking(p -> {
+      Value output = function.execute(input.encode());
+      if (output.isString()) {
+        //only support string encoded JSON objects for now
+        try {
+          p.complete(new JsonObject(output.asString()));
+        } catch (DecodeException de) {
+          p.fail(de);
+        }
+      } else {
+        p.fail(
+            "Function " + functionName + " of module " + url + " must return JSON string");
       }
-    } else {
-      return Future.failedFuture(
-        "Function " + functionName + " of module " + url + " must return JSON string");
-    }
+    }, false);
   }
 
   @Override
