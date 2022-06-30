@@ -19,10 +19,12 @@ public class OaiPmhStatusTest {
     assertThat(oaiPmhStatus.getStatus(), is("running"));
   }
 
-  public void fromJson() {
+  public void mapFromMapTo() {
     JsonObject o = new JsonObject()
-        .put("status", "idle")
-    OaiPmhStatus oaiPmhStatus = Json.decodeValue(o.encode(), OaiPmhStatus.class);
+        .put("status", "idle");
+    OaiPmhStatus oaiPmhStatus = o.mapTo(OaiPmhStatus.class);
     assertThat(oaiPmhStatus.getStatus(), is("idle"));
+    JsonObject o2 = JsonObject.mapFrom(oaiPmhStatus);
+    assertThat(o, is(o2));
   }
 }
