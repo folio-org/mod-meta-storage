@@ -755,7 +755,7 @@ public class MainVerticleTest {
     if (length > 0) {
       Assert.assertTrue(s, foundEnvelope);
     }
-    if (length != -1 && verb.equals("ListRecords")) {
+    if (length != -1 && verb.equals("ListRecords") || verb.equals("GetRecord")) {
       Assert.assertEquals(s, length, numRecsOrDels);
       if (expRecords != null) {
         verifyMarc(expRecords , records);
@@ -2173,18 +2173,6 @@ public class MainVerticleTest {
           .body(Matchers.is(module.asJson().encode()));
     }
 
-    //PUT oai configuration
-    JsonObject oaiConfig = new JsonObject()
-        .put("transformer", "marc-transformer");;
-
-    RestAssured.given()
-        .header(XOkapiHeaders.TENANT, tenant1)
-        .header("Content-Type", "application/json")
-        .body(oaiConfig.encode())
-        .put("/meta-storage/config/oai")
-        .then()
-        .statusCode(204);
-
     JsonArray expectedIssn2 = new JsonArray()
         .add(new JsonObject()
             .put("leader", "new leader")
@@ -2242,6 +2230,18 @@ public class MainVerticleTest {
             )
         );
 
+    //PUT oai configuration
+    JsonObject oaiConfig = new JsonObject()
+        .put("transformer", "marc-transformer");
+
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .header("Content-Type", "application/json")
+        .body(oaiConfig.encode())
+        .put("/meta-storage/config/oai")
+        .then()
+        .statusCode(204);
+
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, tenant1)
@@ -2253,6 +2253,41 @@ public class MainVerticleTest {
         .contentType("text/xml")
         .extract().body().asString();
     verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn2);
+
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("verb", "GetRecord")
+        .param("metadataPrefix", "marcxml")
+        .param("identifier", identifiers.get(0))
+        .get("/meta-storage/oai")
+        .then().statusCode(200)
+        .contentType("text/xml")
+        .extract().body().asString();
+    verifyOaiResponse(s, "GetRecord", identifiers, 1, expectedIssn2);
+
+    //test with transformer turned off
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .param("set", "issn")
+        .param("verb", "ListRecords")
+        .param("metadataPrefix", "marcxml:no-transform")
+        .get("/meta-storage/oai")
+        .then().statusCode(200)
+        .contentType("text/xml")
+        .extract().body().asString();
+    verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn);
+
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("verb", "GetRecord")
+        .param("metadataPrefix", "marcxml:no-transform")
+        .param("identifier", identifiers.get(0))
+        .get("/meta-storage/oai")
+        .then().statusCode(200)
+        .contentType("text/xml")
+        .extract().body().asString();
+    verifyOaiResponse(s, "GetRecord", identifiers, 1, expectedIssn);
+
 
     oaiConfig = new JsonObject()
         .put("transformer", "empty");
