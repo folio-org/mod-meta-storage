@@ -22,6 +22,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -186,7 +187,7 @@ public final class OaiService {
       sqlQuery.append(" ORDER BY datestamp");
       return getTransformerModule(storage, ctx)
           .compose(module -> storage.getPool().getConnection().compose(conn ->
-              listRecordsResponse2(ctx, module, storage, conn, sqlQuery.toString(),
+              listRecordsResponse(ctx, module, storage, conn, sqlQuery.toString(),
                   Tuple.from(tupleList), limit, withMetadata, resumptionToken)
           ));
     });
@@ -194,7 +195,6 @@ public final class OaiService {
 
   private static void endListResponse(RoutingContext ctx, SqlConnection conn, Transaction tx,
       String elem) {
-    log.info("endListResponse");
     tx.commit().compose(y -> conn.close());
     HttpServerResponse response = ctx.response();
     if (!response.headWritten()) { // no records returned is an error which is so weird.
@@ -360,35 +360,6 @@ public final class OaiService {
                 + end));
   }
 
-  static Future<Void> populateCluster(Storage storage,
-      SqlConnection conn, ClusterRecord cr, boolean withMetadata) {
-    Future<List<String>> clusterValues = Future.succeededFuture(Collections.emptyList());
-    if (withMetadata) {
-      clusterValues = getClusterValues(storage, conn, cr.clusterId);
-    }
-    return clusterValues.compose(values -> {
-      cr.clusterValues = values;
-      return populateCluster2(storage, conn, cr);
-    });
-  }
-
-  static Future<Void> populateCluster2(Storage storage, SqlConnection conn, ClusterRecord cr) {
-    String q = "SELECT * FROM " + storage.getGlobalRecordTable()
-        + " LEFT JOIN " + storage.getClusterRecordTable() + " ON record_id = id "
-        + " WHERE cluster_id = $1";
-    return conn.preparedQuery(q)
-        .execute(Tuple.of(cr.clusterId))
-        .map(rowSet -> {
-          if (rowSet.size() == 0) {
-            return null;
-          }
-          cr.cb = new ClusterBuilder(cr.clusterId)
-              .records(rowSet)
-              .matchValues(cr.clusterValues);
-          return null;
-        });
-  }
-
   static void writeResumptionToken(RoutingContext ctx, ResumptionToken token) {
     HttpServerResponse response = ctx.response();
     response.write("    <resumptionToken>");
@@ -396,6 +367,7 @@ public final class OaiService {
     response.write("</resumptionToken>\n");
   }
 
+  @java.lang.SuppressWarnings({"squid:S107"})  // too many arguments
   static Future<Void> listRecordsResponse(RoutingContext ctx, Module module, Storage storage,
       SqlConnection conn, String sqlQuery, Tuple tuple, Integer limit, boolean withMetadata,
       ResumptionToken token) {
@@ -404,10 +376,17 @@ public final class OaiService {
     return conn.prepare(sqlQuery).compose(pq ->
         conn.begin().compose(tx -> {
           HttpServerResponse response = ctx.response();
+          ClusterRecordStream clusterRecordStream
+              = new ClusterRecordStream(ctx.vertx(), storage, conn, response, module, withMetadata);
           RowStream<Row> stream = pq.createStream(100, tuple);
           AtomicInteger cnt = new AtomicInteger();
+          AtomicBoolean ended = new AtomicBoolean();
+          clusterRecordStream.drainHandler(x -> {
+            if (!ended.get()) {
+              stream.resume();
+            }
+          });
           stream.handler(row -> {
-            stream.pause();
             if (cnt.get() == 0) {
               oaiHeader(ctx);
               response.write("  <" + elem + ">\n");
@@ -416,86 +395,29 @@ public final class OaiService {
             if (token.getFrom() == null || datestamp.isAfter(token.getFrom())) {
               token.setFrom(datestamp);
               if (cnt.get() >= limit) {
-                writeResumptionToken(ctx, token);
-                stream.close();
-                endListResponse(ctx, conn, tx, elem);
+                ended.set(true);
+                stream.pause();
+                clusterRecordStream.end().onComplete(y -> {
+                  writeResumptionToken(ctx, token);
+                  endListResponse(ctx, conn, tx, elem);
+                });
                 return;
               }
             }
             cnt.incrementAndGet();
-            getXmlRecord(module, storage, conn, row.getUUID("cluster_id"), datestamp,
-                row.getString("match_key_config_id"), withMetadata)
-                .onSuccess(xmlRecord -> response.write(xmlRecord).onComplete(x -> stream.resume()))
-                .onFailure(e -> {
-                  response.write("<!-- Failed to produce record: "
-                      + encodeXmlText(e.getMessage()) + " -->\n");
-                  log.info("failure {}", e.getMessage(), e);
-                  stream.resume();
-                });
+            ClusterRecordItem cr = new ClusterRecordItem();
+            cr.clusterId = row.getUUID("cluster_id");
+            cr.datestamp = datestamp;
+            cr.oaiSet = row.getString("match_key_config_id");
+            clusterRecordStream.write(cr);
+            if (clusterRecordStream.writeQueueFull()) {
+              stream.pause();
+            }
           });
-          stream.endHandler(end -> endListResponse(ctx, conn, tx, elem));
-          stream.exceptionHandler(e -> {
-            log.error("stream error {}", e.getMessage(), e);
-            endListResponse(ctx, conn, tx, elem);
-          });
-          return Future.succeededFuture();
-        })
-    );
-  }
-
-
-
-  @java.lang.SuppressWarnings({"squid:S107"})  // too many arguments
-  static Future<Void> listRecordsResponse2(RoutingContext ctx, Module module, Storage storage,
-      SqlConnection conn, String sqlQuery, Tuple tuple, Integer limit, boolean withMetadata,
-      ResumptionToken token) {
-
-    String elem = withMetadata ? "ListRecords" : "ListIdentifiers";
-    return conn.prepare(sqlQuery).compose(pq ->
-        conn.begin().compose(tx -> {
-          HttpServerResponse response = ctx.response();
-          ClusterRecordStream clusterRecordStream = new ClusterRecordStream(response, module, withMetadata);
-          RowStream<Row> stream = pq.createStream(100, tuple);
-          AtomicInteger cnt = new AtomicInteger();
-          clusterRecordStream.drainHandler(x -> stream.resume());
-          stream.handler(row -> {
-                stream.pause();
-                if (cnt.get() == 0) {
-                  oaiHeader(ctx);
-                  response.write("  <" + elem + ">\n");
-                }
-                LocalDateTime datestamp = row.getLocalDateTime("datestamp");
-                if (token.getFrom() == null || datestamp.isAfter(token.getFrom())) {
-                  token.setFrom(datestamp);
-                  if (cnt.get() >= limit) {
-                    clusterRecordStream.end().onComplete(y -> {
-                      writeResumptionToken(ctx, token);
-                      stream.close();
-                      endListResponse(ctx, conn, tx, elem);
-                    });
-                    return;
-                  }
-                }
-                cnt.incrementAndGet();
-                ClusterRecord cr = new ClusterRecord();
-                cr.clusterId = row.getUUID("cluster_id");
-                cr.datestamp = datestamp;
-                cr.oaiSet = row.getString("match_key_config_id");
-
-                populateCluster(storage, conn, cr, withMetadata)
-                    .onSuccess(x -> {
-                      clusterRecordStream.write(cr);
-                      if (!clusterRecordStream.writeQueueFull()) {
-                        stream.resume();
-                      }
-                    })
-                    .onFailure(e ->
-                      log.error("populateCluster failed: {}", e.getMessage(), e)
-                    );
-              });
-          stream.endHandler(end ->
+          stream.endHandler(end -> {
             clusterRecordStream.end()
-                .onComplete(y -> endListResponse(ctx, conn, tx, elem)));
+                .onComplete(y -> endListResponse(ctx, conn, tx, elem));
+          });
           stream.exceptionHandler(e -> {
             log.error("stream error {}", e.getMessage(), e);
             endListResponse(ctx, conn, tx, elem);
