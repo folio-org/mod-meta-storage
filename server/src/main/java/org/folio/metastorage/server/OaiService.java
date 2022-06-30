@@ -19,8 +19,11 @@ import io.vertx.sqlclient.Tuple;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.logging.log4j.LogManager;
@@ -108,18 +111,26 @@ public final class OaiService {
         throw OaiException.badVerb("missing verb");
       }
       String metadataPrefix = Util.getParameterString(params.queryParameter("metadataPrefix"));
-      if (metadataPrefix != null && !"marcxml".equals(metadataPrefix)) {
-        throw OaiException.cannotDisseminateFormat("only metadataPrefix \"marcxml\" supported");
+      Set<String> extraArgs = new HashSet<>(0);
+      if (metadataPrefix != null) {
+        String[] mpParams = metadataPrefix.split(":");
+        if (mpParams.length > 0) {
+          String mp = mpParams[0];
+          if (!"marcxml".equals(mp)) {
+            throw OaiException.cannotDisseminateFormat("only metadataPrefix \"marcxml\" supported");
+          }
+          extraArgs = new HashSet<>(Arrays.asList(mpParams).subList(1, mpParams.length));
+        }
       }
       switch (verb) {
         case IDENTIFY_VERB:
           return identify(ctx);
         case LIST_IDENTIFIERS_VERB:
-          return list(ctx, LIST_IDENTIFIERS_VERB);
+          return list(ctx, LIST_IDENTIFIERS_VERB, extraArgs);
         case LIST_RECORDS_VERB:
-          return list(ctx, LIST_RECORDS_VERB);
+          return list(ctx, LIST_RECORDS_VERB, extraArgs);
         case GET_RECORD_VERB:
-          return getRecord(ctx);
+          return getRecord(ctx, extraArgs);
         default:
           throw OaiException.badVerb(verb);
       }
@@ -154,7 +165,7 @@ public final class OaiService {
     return Future.succeededFuture();
   }
 
-  static Future<Void> list(RoutingContext ctx, String verb) {
+  static Future<Void> list(RoutingContext ctx, String verb, Set<String> args) {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String coded = Util.getParameterString(params.queryParameter("resumptionToken"));
     ResumptionToken token = coded != null ? new ResumptionToken(coded) : null;
@@ -189,7 +200,7 @@ public final class OaiService {
       }
       ResumptionToken resumptionToken = new ResumptionToken(conf.getString("id"), until);
       sqlQuery.append(" ORDER BY datestamp");
-      return getTransformerModule(storage, ctx, verb)
+      return getTransformerModule(storage, ctx, args)
           .compose(module -> storage.getPool().getConnection().compose(conn ->
               listResponse(verb, ctx, module, storage, conn, sqlQuery.toString(),
                   Tuple.from(tupleList), limit, resumptionToken)
@@ -302,14 +313,14 @@ public final class OaiService {
         .compose(rowSet -> processMetadata(module, rowSet, clusterId, matchValues));
   }
 
-  static Future<Module> getTransformerModule(Storage storage, RoutingContext ctx, String verb) {
+  static Future<Module> getTransformerModule(Storage storage, RoutingContext ctx, 
+      Set<String> args) {
+    if (args.contains("no-transform")) {
+      return Future.succeededFuture(null);
+    }
     return storage.selectOaiConfig()
         .compose(oaiCfg -> {
           if (oaiCfg == null) {
-            return Future.succeededFuture(null);
-          }
-          boolean skipTransform = verb.equalsIgnoreCase(oaiCfg.getString("skipTransformer"));
-          if (skipTransform) {
             return Future.succeededFuture(null);
           }
           String transformer = oaiCfg.getString("transformer");
@@ -419,7 +430,7 @@ public final class OaiService {
     );
   }
 
-  static Future<Void> getRecord(RoutingContext ctx) {
+  static Future<Void> getRecord(RoutingContext ctx, Set<String> args) {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String identifier = Util.getParameterString(params.queryParameter("identifier"));
     if (identifier == null) {
@@ -427,7 +438,7 @@ public final class OaiService {
     }
     UUID clusterId = decodeOaiIdentifier(identifier);
     Storage storage = new Storage(ctx);
-    return getTransformerModule(storage, ctx, GET_RECORD_VERB).compose(module -> {
+    return getTransformerModule(storage, ctx, args).compose(module -> {
       String sqlQuery = "SELECT * FROM " + storage.getClusterMetaTable() + " WHERE cluster_id = $1";
       return storage.getPool()
           .withConnection(conn -> conn.preparedQuery(sqlQuery)

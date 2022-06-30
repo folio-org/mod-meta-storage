@@ -2254,31 +2254,6 @@ public class MainVerticleTest {
         .extract().body().asString();
     verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn2);
 
-      //PUT oai configuration that skips transformer for ListRecords
-    JsonObject oaiConfigSkip = new JsonObject()
-        .put("transformer", "marc-transformer")
-        .put("skipTransformer", "ListRecords");
-
-    RestAssured.given()
-        .header(XOkapiHeaders.TENANT, tenant1)
-        .header("Content-Type", "application/json")
-        .body(oaiConfigSkip.encode())
-        .put("/meta-storage/config/oai")
-        .then()
-        .statusCode(204);
-
-
-    s = RestAssured.given()
-        .header(XOkapiHeaders.TENANT, tenant1)
-        .param("set", "issn")
-        .param("verb", "ListRecords")
-        .param("metadataPrefix", "marcxml")
-        .get("/meta-storage/oai")
-        .then().statusCode(200)
-        .contentType("text/xml")
-        .extract().body().asString();
-    verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn);
-
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .param("verb", "GetRecord")
@@ -2289,6 +2264,29 @@ public class MainVerticleTest {
         .contentType("text/xml")
         .extract().body().asString();
     verifyOaiResponse(s, "GetRecord", identifiers, 1, expectedIssn2);
+
+    //test with transformer turned off
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, tenant1)
+        .param("set", "issn")
+        .param("verb", "ListRecords")
+        .param("metadataPrefix", "marcxml:no-transform")
+        .get("/meta-storage/oai")
+        .then().statusCode(200)
+        .contentType("text/xml")
+        .extract().body().asString();
+    verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn);
+
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("verb", "GetRecord")
+        .param("metadataPrefix", "marcxml:no-transform")
+        .param("identifier", identifiers.get(0))
+        .get("/meta-storage/oai")
+        .then().statusCode(200)
+        .contentType("text/xml")
+        .extract().body().asString();
+    verifyOaiResponse(s, "GetRecord", identifiers, 1, expectedIssn);
 
 
     oaiConfig = new JsonObject()

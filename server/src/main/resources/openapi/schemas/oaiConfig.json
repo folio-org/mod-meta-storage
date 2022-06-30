@@ -6,10 +6,6 @@
       "type": "string",
       "description" : "OAI server response transformer module ID"
     },
-    "skipTransformer": {
-      "type": "string",
-      "description" : "Name of the verb to skip the transformer for e.g ListRecords or GetRecord"
-    },
     "repositoryName": {
       "type": "string",
       "description": "OAI repository name"
