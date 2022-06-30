@@ -36,6 +36,11 @@ import org.folio.tlib.util.TenantUtil;
 public final class OaiService {
   private static final Logger log = LogManager.getLogger(OaiService.class);
 
+  private static final String IDENTIFY_VERB = "Identify";
+  private static final String LIST_RECORDS_VERB = "ListRecords";
+  private static final String GET_RECORD_VERB = "GetRecord";
+  private static final String LIST_IDENTIFIERS_VERB = "ListIdentifiers";
+
   private OaiService() { }
 
   static final String OAI_HEADER = """
@@ -107,13 +112,13 @@ public final class OaiService {
         throw OaiException.cannotDisseminateFormat("only metadataPrefix \"marcxml\" supported");
       }
       switch (verb) {
-        case "Identify":
+        case IDENTIFY_VERB:
           return identify(ctx);
-        case "ListIdentifiers":
-          return listRecords(ctx, false);
-        case "ListRecords":
-          return listRecords(ctx, true);
-        case "GetRecord":
+        case LIST_IDENTIFIERS_VERB:
+          return list(ctx, LIST_IDENTIFIERS_VERB);
+        case LIST_RECORDS_VERB:
+          return list(ctx, LIST_RECORDS_VERB);
+        case GET_RECORD_VERB:
           return getRecord(ctx);
         default:
           throw OaiException.badVerb(verb);
@@ -149,7 +154,7 @@ public final class OaiService {
     return Future.succeededFuture();
   }
 
-  static Future<Void> listRecords(RoutingContext ctx, boolean withMetadata) {
+  static Future<Void> list(RoutingContext ctx, String verb) {
     RequestParameters params = ctx.get(ValidationHandler.REQUEST_CONTEXT_KEY);
     String coded = Util.getParameterString(params.queryParameter("resumptionToken"));
     ResumptionToken token = coded != null ? new ResumptionToken(coded) : null;
@@ -184,10 +189,10 @@ public final class OaiService {
       }
       ResumptionToken resumptionToken = new ResumptionToken(conf.getString("id"), until);
       sqlQuery.append(" ORDER BY datestamp");
-      return getTransformerModule(storage, ctx)
+      return getTransformerModule(storage, ctx, verb)
           .compose(module -> storage.getPool().getConnection().compose(conn ->
-              listRecordsResponse(ctx, module, storage, conn, sqlQuery.toString(),
-                  Tuple.from(tupleList), limit, withMetadata, resumptionToken)
+              listResponse(verb, ctx, module, storage, conn, sqlQuery.toString(),
+                  Tuple.from(tupleList), limit, resumptionToken)
           ));
     });
   }
@@ -297,10 +302,14 @@ public final class OaiService {
         .compose(rowSet -> processMetadata(module, rowSet, clusterId, matchValues));
   }
 
-  static Future<Module> getTransformerModule(Storage storage, RoutingContext ctx) {
+  static Future<Module> getTransformerModule(Storage storage, RoutingContext ctx, String verb) {
     return storage.selectOaiConfig()
         .compose(oaiCfg -> {
           if (oaiCfg == null) {
+            return Future.succeededFuture(null);
+          }
+          boolean skipTransform = verb.equalsIgnoreCase(oaiCfg.getString("skipTransformer"));
+          if (skipTransform) {
             return Future.succeededFuture(null);
           }
           String transformer = oaiCfg.getString("transformer");
@@ -365,11 +374,9 @@ public final class OaiService {
   }
 
   @java.lang.SuppressWarnings({"squid:S107"})  // too many arguments
-  static Future<Void> listRecordsResponse(RoutingContext ctx, Module module, Storage storage,
-      SqlConnection conn, String sqlQuery, Tuple tuple, Integer limit, boolean withMetadata,
+  static Future<Void> listResponse(String verb, RoutingContext ctx, Module module, Storage storage,
+      SqlConnection conn, String sqlQuery, Tuple tuple, Integer limit,
       ResumptionToken token) {
-
-    String elem = withMetadata ? "ListRecords" : "ListIdentifiers";
     return conn.prepare(sqlQuery).compose(pq ->
         conn.begin().compose(tx -> {
           HttpServerResponse response = ctx.response();
@@ -379,7 +386,7 @@ public final class OaiService {
             stream.pause();
             if (cnt.get() == 0) {
               oaiHeader(ctx);
-              response.write("  <" + elem + ">\n");
+              response.write("  <" + verb + ">\n");
             }
             LocalDateTime datestamp = row.getLocalDateTime("datestamp");
             if (token.getFrom() == null || datestamp.isAfter(token.getFrom())) {
@@ -387,13 +394,13 @@ public final class OaiService {
               if (cnt.get() >= limit) {
                 writeResumptionToken(ctx, token);
                 stream.close();
-                endListResponse(ctx, conn, tx, elem);
+                endListResponse(ctx, conn, tx, verb);
                 return;
               }
             }
             cnt.incrementAndGet();
             getXmlRecord(module, storage, conn, row.getUUID("cluster_id"), datestamp,
-                row.getString("match_key_config_id"), withMetadata)
+                row.getString("match_key_config_id"), LIST_RECORDS_VERB.equals(verb))
                 .onSuccess(xmlRecord -> response.write(xmlRecord).onComplete(x -> stream.resume()))
                 .onFailure(e -> {
                   response.write("<!-- Failed to produce record: "
@@ -402,10 +409,10 @@ public final class OaiService {
                   stream.resume();
                 });
           });
-          stream.endHandler(end -> endListResponse(ctx, conn, tx, elem));
+          stream.endHandler(end -> endListResponse(ctx, conn, tx, verb));
           stream.exceptionHandler(e -> {
             log.error("stream error {}", e.getMessage(), e);
-            endListResponse(ctx, conn, tx, elem);
+            endListResponse(ctx, conn, tx, verb);
           });
           return Future.succeededFuture();
         })
@@ -420,7 +427,7 @@ public final class OaiService {
     }
     UUID clusterId = decodeOaiIdentifier(identifier);
     Storage storage = new Storage(ctx);
-    return getTransformerModule(storage, ctx).compose(module -> {
+    return getTransformerModule(storage, ctx, GET_RECORD_VERB).compose(module -> {
       String sqlQuery = "SELECT * FROM " + storage.getClusterMetaTable() + " WHERE cluster_id = $1";
       return storage.getPool()
           .withConnection(conn -> conn.preparedQuery(sqlQuery)
@@ -436,9 +443,9 @@ public final class OaiService {
                     row.getString("match_key_config_id"), true)
                     .map(xmlRecord -> {
                       oaiHeader(ctx);
-                      ctx.response().write("  <GetRecord>\n");
+                      ctx.response().write("  <" + GET_RECORD_VERB + ">\n");
                       ctx.response().write(xmlRecord);
-                      ctx.response().write("  </GetRecord>\n");
+                      ctx.response().write("  </" + GET_RECORD_VERB + ">\n");
                       oaiFooter(ctx);
                       return null;
                     });
