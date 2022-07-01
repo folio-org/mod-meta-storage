@@ -151,7 +151,7 @@ public class ClusterRecordStream implements WriteStream<ClusterRecordItem> {
   @Override
   public Future<Void> write(ClusterRecordItem cr) {
     work.add(cr);
-    perform(cr).onComplete(x -> {
+    return perform(cr).onComplete(x -> {
       work.remove(cr);
       if (work.size() == writeQueueMaxSize - 1 && !ended) {
         drainHandler.handle(null);
@@ -160,7 +160,6 @@ public class ClusterRecordStream implements WriteStream<ClusterRecordItem> {
         this.endHandler.handle(Future.succeededFuture());
       }
     });
-    return Future.succeededFuture();
   }
 
   @Override
