@@ -108,7 +108,7 @@ public class ClusterRecordStream implements WriteStream<ClusterRecordItem> {
             JsonObject build = cr.cb.build();
             future = vertx.executeBlocking(prom -> {
               try {
-                prom.handle(module.execute(build).map(json -> JsonToMarcXml.convert(json)));
+                prom.handle(module.execute(build).map(JsonToMarcXml::convert));
               } catch (Exception e) {
                 prom.fail(e);
               }
