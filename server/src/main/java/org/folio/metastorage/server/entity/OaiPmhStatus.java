@@ -1,29 +1,42 @@
 package org.folio.metastorage.server.entity;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-
+import io.vertx.core.json.JsonObject;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class OaiPmhStatus {
+
+
+  @JsonIgnore
+  private JsonObject config;
 
   String error;
 
   LocalDateTime lastActiveTimestamp;
 
-  Integer lastRecsPerSec;
+  Long lastRecsPerSec;
 
   LocalDateTime lastStartedTimestamp;
 
-  Integer lastRunningTime;
+  Long lastRunningTime;
 
-  Integer lastTotalRecords;
+  Long lastTotalRecords;
 
   String status;
 
-  Integer totalDeleted;
+  Long totalDeleted;
 
-  Integer totalRecords;
+  private Long totalInserted;
+
+  private Long totalUpdated;
+
+  Long totalRecords;
+
+  Integer totalRequests;
 
   public String getError() {
     return error;
@@ -33,43 +46,88 @@ public class OaiPmhStatus {
     this.error = error;
   }
 
-  public LocalDateTime getLastActiveTimestamp() {
+  /**
+   * Get last active timestamp as string.
+   * @return time in UTC
+   */
+  public String getLastActiveTimestamp() {
+    return  lastActiveTimestamp != null
+        ? lastActiveTimestamp.atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE_TIME)
+        : null;
+  }
+
+  /**
+   * Set last active timestamp as string.
+   * @param timestamp time in UTC
+   */
+  public void setLastActiveTimestamp(String timestamp) {
+    this.lastActiveTimestamp = timestamp != null
+        ? LocalDateTime.parse(timestamp, DateTimeFormatter.ISO_DATE_TIME)
+        : null;
+  }
+
+  @JsonIgnore
+  public LocalDateTime getLastActiveTimestampRaw() {
     return lastActiveTimestamp;
   }
 
-  public void setLastActiveTimestamp(LocalDateTime lastActiveTimestamp) {
-    this.lastActiveTimestamp = lastActiveTimestamp;
+  @JsonIgnore
+  public void setLastActiveTimestampRaw(LocalDateTime timestamp) {
+    this.lastActiveTimestamp = timestamp;
   }
 
-  public Integer getLastRecsPerSec() {
+  public Long getLastRecsPerSec() {
     return lastRecsPerSec;
   }
 
-  public void setLastRecsPerSec(Integer lastRecsPerSec) {
+  public void setLastRecsPerSec(Long lastRecsPerSec) {
     this.lastRecsPerSec = lastRecsPerSec;
   }
 
-  public LocalDateTime getLastStartedTimestamp() {
+  /**
+   * Get last started timestamp as string.
+   * @return time in UTC
+   */
+  public String getLastStartedTimestamp() {
+    return lastStartedTimestamp != null
+        ? lastStartedTimestamp.atZone(ZoneOffset.UTC).format(DateTimeFormatter.ISO_DATE_TIME)
+        : null;
+  }
+
+  /**
+   * Set last started timestamp as string.
+   * @param timestamp time in UTC.
+   */
+  public void setLastStartedTimestamp(String timestamp) {
+    this.lastStartedTimestamp = timestamp != null
+        ? LocalDateTime.parse(timestamp, DateTimeFormatter.ISO_DATE_TIME)
+        : null;
+  }
+
+  @JsonIgnore
+  public LocalDateTime getLastStartedTimestampRaw() {
     return lastStartedTimestamp;
   }
 
-  public void setLastStartedTimestamp(LocalDateTime lastStartedTimestamp) {
-    this.lastStartedTimestamp = lastStartedTimestamp;
+  @JsonIgnore
+  public void setLastStartedTimestampRaw(LocalDateTime timestamp) {
+    this.lastStartedTimestamp = timestamp;
   }
 
-  public Integer getLastRunningTime() {
+
+  public Long getLastRunningTime() {
     return lastRunningTime;
   }
 
-  public void setLastRunningTime(Integer lastRunningTime) {
+  public void setLastRunningTime(Long lastRunningTime) {
     this.lastRunningTime = lastRunningTime;
   }
 
-  public Integer getLastTotalRecords() {
+  public Long getLastTotalRecords() {
     return lastTotalRecords;
   }
 
-  public void setLastTotalRecords(Integer lastTotalRecords) {
+  public void setLastTotalRecords(Long lastTotalRecords) {
     this.lastTotalRecords = lastTotalRecords;
   }
 
@@ -81,19 +139,58 @@ public class OaiPmhStatus {
     this.status = status;
   }
 
-  public Integer getTotalDeleted() {
+  public Long getTotalDeleted() {
     return totalDeleted;
   }
 
-  public void setTotalDeleted(Integer totalDeleted) {
+  public void setTotalDeleted(Long totalDeleted) {
     this.totalDeleted = totalDeleted;
   }
 
-  public Integer getTotalRecords() {
+  public Long getTotalRecords() {
     return totalRecords;
   }
 
-  public void setTotalRecords(Integer totalRecords) {
+  public void setTotalRecords(Long totalRecords) {
     this.totalRecords = totalRecords;
+  }
+
+  public Integer getTotalRequests() {
+    return totalRequests;
+  }
+
+  public void setTotalRequests(Integer totalRequests) {
+    this.totalRequests = totalRequests;
+  }
+
+  @JsonIgnore
+  public JsonObject getConfig() {
+    return config;
+  }
+
+  @JsonIgnore
+  public void setConfig(JsonObject config) {
+    this.config = config;
+  }
+
+  @JsonIgnore
+  public JsonObject getJsonObject() {
+    return JsonObject.mapFrom(this).put("config", config);
+  }
+
+  public Long getTotalInserted() {
+    return totalInserted;
+  }
+
+  public void setTotalInserted(Long totalInserted) {
+    this.totalInserted = totalInserted;
+  }
+
+  public Long getTotalUpdated() {
+    return totalUpdated;
+  }
+
+  public void setTotalUpdated(Long totalUpdated) {
+    this.totalUpdated = totalUpdated;
   }
 }

@@ -66,11 +66,13 @@ import org.xml.sax.SAXException;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 @RunWith(VertxUnitRunner.class)
 public class MainVerticleTest {
@@ -2933,6 +2935,7 @@ public class MainVerticleTest {
         .contentType("application/json")
         .body("items[0].status", is("idle"))
         .body("items[0].totalRecords", is(0))
+        .body("items[0].lastTotalRecords", is(nullValue()))
         .body("items[0].totalRequests", is(0))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
         .body("items[0].config.sourceId", is(SOURCE_ID_1));
@@ -2958,6 +2961,9 @@ public class MainVerticleTest {
         .contentType("application/json")
         .body("items[0].status", is("idle"))
         .body("items[0].totalRecords", is(0))
+        .body("items[0].lastTotalRecords", is(0))
+        .body("items[0].lastActiveTimestamp", endsWith("Z"))
+        .body("items[0].lastStartedTimestamp", endsWith("Z"))
         .body("items[0].totalRequests", is(1));
 
     RestAssured.given()
@@ -3043,6 +3049,12 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("application/json")
         .body("items[0].status", is("idle"))
+        .body("items[0].lastTotalRecords", is(10))
+        .body("items[0].lastRunningTime", greaterThanOrEqualTo(1))
+        .body("items[0].lastRecsPerSec", greaterThanOrEqualTo(100))
+        .body("items[0].totalDeleted", is(0))
+        .body("items[0].totalInserted", is(7)) // should be 10
+        .body("items[0].totalUpdated", is(0))
         .body("items[0].totalRecords", is(10))
         .body("items[0].totalRequests", is(3)) // 4 + 4 + 2 : 3 requests with limit 4
         .body("items[0].config.id", is(PMH_CLIENT_ID))
@@ -3092,6 +3104,10 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("application/json")
         .body("items[0].status", is("idle"))
+        .body("items[0].totalRecords", is(20))
+        .body("items[0].totalDeleted", is(1)) // should be 3 from round 2
+        .body("items[0].totalInserted", is(7)) // should be 10 from round 1
+        .body("items[0].totalUpdated", is(6)) // should be 7 from round 2
         .body("items[0].config.id", is(PMH_CLIENT_ID))
         .body("items[0].config.resumptionToken", is(nullValue()))
         .body("items[0].config.from", hasLength(20))
@@ -3481,6 +3497,8 @@ public class MainVerticleTest {
         .body("items[0].status", is("idle"))
         .body("items[0].totalRecords", is(0))
         .body("items[0].totalRequests", greaterThanOrEqualTo(1))
+        .body("items[0].lastTotalRecords", greaterThanOrEqualTo(0))
+        .body("items[0].lastRunningTime", greaterThanOrEqualTo(0))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
         .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
@@ -3575,6 +3593,8 @@ public class MainVerticleTest {
         .body("items[0].status", is("idle"))
         .body("items[0].totalRecords", is(0))
         .body("items[0].totalRequests", greaterThanOrEqualTo(1))
+        .body("items[0].lastTotalRecords", greaterThanOrEqualTo(0))
+        .body("items[0].lastRunningTime", greaterThanOrEqualTo(0))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
         .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
