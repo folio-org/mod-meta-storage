@@ -19,6 +19,7 @@ public class OaiPmhStatusTest {
     assertThat(oaiPmhStatus.getStatus(), is("running"));
   }
 
+  @Test
   public void mapFromMapTo() {
     JsonObject o = new JsonObject()
         .put("status", "idle");
