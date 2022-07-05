@@ -61,9 +61,7 @@ public class OaiPmhStatus {
    * @param timestamp time in UTC
    */
   public void setLastActiveTimestamp(String timestamp) {
-    this.lastActiveTimestamp = timestamp != null
-        ? LocalDateTime.parse(timestamp, DateTimeFormatter.ISO_DATE_TIME)
-        : null;
+    this.lastActiveTimestamp = LocalDateTime.parse(timestamp, DateTimeFormatter.ISO_DATE_TIME);
   }
 
   @JsonIgnore
@@ -99,9 +97,7 @@ public class OaiPmhStatus {
    * @param timestamp time in UTC.
    */
   public void setLastStartedTimestamp(String timestamp) {
-    this.lastStartedTimestamp = timestamp != null
-        ? LocalDateTime.parse(timestamp, DateTimeFormatter.ISO_DATE_TIME)
-        : null;
+    this.lastStartedTimestamp = LocalDateTime.parse(timestamp, DateTimeFormatter.ISO_DATE_TIME);
   }
 
   @JsonIgnore

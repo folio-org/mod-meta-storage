@@ -131,7 +131,8 @@ public class OaiPmhClientService {
     JsonObject json = row.getJsonObject("job");
     OaiPmhStatus oaiPmhStatus;
     if (json != null) {
-      json.remove("config"); // earlier version of mod-meta-storage stored config in job as well.
+      // earlier version of mod-meta-storage stored config in jobs (not anymore)
+      json.remove(CONFIG_LITERAL);
       oaiPmhStatus = json.mapTo(OaiPmhStatus.class);
     } else {
       oaiPmhStatus = new OaiPmhStatus();
@@ -515,7 +516,6 @@ public class OaiPmhClientService {
   }
 
   static void endResponse(StringBuilder resumptionToken, Promise<Void> promise, OaiPmhStatus job) {
-
     JsonObject config = job.getConfig();
     LocalDateTime started = job.getLastStartedTimestampRaw();
     long runningTimeMilli =
