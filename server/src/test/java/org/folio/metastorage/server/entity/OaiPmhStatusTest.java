@@ -60,4 +60,18 @@ public class OaiPmhStatusTest {
     assertThat(oaiPmhStatus2.getLastStartedTimestampRaw(), is(now));
   }
 
+  @Test
+  public void lastRecsPerSec() {
+    OaiPmhStatus oaiPmhStatus = new OaiPmhStatus();
+    oaiPmhStatus.calculateLastRecsPerSec();
+    assertThat(oaiPmhStatus.getLastRecsPerSec(), is(nullValue()));
+    oaiPmhStatus.setLastRunningTime(0L);
+    oaiPmhStatus.calculateLastRecsPerSec();
+    assertThat(oaiPmhStatus.getLastRecsPerSec(), is(nullValue()));
+    oaiPmhStatus.setLastRunningTime(2L);
+    oaiPmhStatus.setLastTotalRecords(30L);
+    oaiPmhStatus.calculateLastRecsPerSec();
+    assertThat(oaiPmhStatus.getLastRecsPerSec(), is(15000L));
+  }
+
 }

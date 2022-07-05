@@ -521,10 +521,7 @@ public class OaiPmhClientService {
     long runningTimeMilli =
         Duration.between(started, job.getLastActiveTimestampRaw()).toMillis();
     job.setLastRunningTime(runningTimeMilli);
-    if (runningTimeMilli > 0) {
-      long val = job.getLastTotalRecords() * 1000L / runningTimeMilli;
-      job.setLastRecsPerSec(val);
-    }
+    job.calculateLastRecsPerSec();
     String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
     if (resumptionToken.length() == 0
         || resumptionToken.toString().equals(oldResumptionToken)) {

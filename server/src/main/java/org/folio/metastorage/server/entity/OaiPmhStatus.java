@@ -83,6 +83,16 @@ public class OaiPmhStatus {
   }
 
   /**
+   * Set lastRecsPerSec based on lastRunningTime and lastTotalRecords.
+   */
+  @JsonIgnore
+  public void calculateLastRecsPerSec() {
+    lastRecsPerSec = lastRunningTime != null && lastRunningTime > 0L
+        ? lastTotalRecords * 1000L / lastRunningTime
+        : null;
+  }
+
+  /**
    * Get last started timestamp as string.
    * @return time in UTC
    */
