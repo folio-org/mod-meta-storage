@@ -74,4 +74,12 @@ public class OaiPmhStatusTest {
     assertThat(oaiPmhStatus.getLastRecsPerSec(), is(15000L));
   }
 
+  @Test
+  public void readable() {
+    OaiPmhStatus oaiPmhStatus = new OaiPmhStatus();
+    JsonObject o1 = oaiPmhStatus.getJsonObject();
+    oaiPmhStatus.setLastRunningTime(1000L * (2 * 24 * 3600 + 3 * 3600L + 4 * 60 + 5));
+    o1 = oaiPmhStatus.getJsonObject();
+    assertThat(o1.getString("lastRunningTime"), is("2 days 03 hrs 04 mins 05 secs"));
+  }
 }

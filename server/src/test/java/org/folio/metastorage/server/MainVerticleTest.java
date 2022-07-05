@@ -73,6 +73,7 @@ import static org.hamcrest.Matchers.hasLength;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 @RunWith(VertxUnitRunner.class)
 public class MainVerticleTest {
@@ -3046,7 +3047,7 @@ public class MainVerticleTest {
         .contentType("application/json")
         .body("items[0].status", is("idle"))
         .body("items[0].lastTotalRecords", is(10))
-        .body("items[0].lastRunningTime", greaterThanOrEqualTo(1))
+        .body("items[0].lastRunningTime", startsWith("0 days 00 hrs 00 mins 0"))
         .body("items[0].lastRecsPerSec", greaterThanOrEqualTo(100))
         .body("items[0].totalDeleted", is(0))
         .body("items[0].totalInserted", is(10))
@@ -3494,7 +3495,7 @@ public class MainVerticleTest {
         .body("items[0].totalRecords", is(0))
         .body("items[0].totalRequests", greaterThanOrEqualTo(1))
         .body("items[0].lastTotalRecords", greaterThanOrEqualTo(0))
-        .body("items[0].lastRunningTime", greaterThanOrEqualTo(0))
+        .body("items[0].lastRunningTime", startsWith("0 days 00 hrs 00 mins 0"))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
         .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }
@@ -3590,7 +3591,7 @@ public class MainVerticleTest {
         .body("items[0].totalRecords", is(0))
         .body("items[0].totalRequests", greaterThanOrEqualTo(1))
         .body("items[0].lastTotalRecords", greaterThanOrEqualTo(0))
-        .body("items[0].lastRunningTime", greaterThanOrEqualTo(0))
+        .body("items[0].lastRunningTime", startsWith("0 days 00 hrs 00 mins 0"))
         .body("items[0].config.id", is(PMH_CLIENT_ID))
         .body("items[0].config.sourceId", is(SOURCE_ID_1));
   }

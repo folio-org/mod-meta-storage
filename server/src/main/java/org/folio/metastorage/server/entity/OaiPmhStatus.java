@@ -9,8 +9,6 @@ import java.time.format.DateTimeFormatter;
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class OaiPmhStatus {
-
-
   @JsonIgnore
   private JsonObject config;
 
@@ -194,9 +192,21 @@ public class OaiPmhStatus {
     this.config = config;
   }
 
+  /**
+   * Get JSON object as it's returned by status.
+   * @return JSON object
+   */
   @JsonIgnore
   public JsonObject getJsonObject() {
-    return JsonObject.mapFrom(this).put("config", config);
+    JsonObject o = JsonObject.mapFrom(this)
+        .put("config", config);
+    if (lastRunningTime != null) {
+      Long s = lastRunningTime / 1000L;
+      String readable = String.format("%d days %02d hrs %02d mins %02d secs",
+          s / (24 * 3600), (s % (24 * 3600)) / 3600, (s % 3600) / 60, (s % 60));
+      o.put("lastRunningTime", readable);
+    }
+    return o;
   }
 
   public Long getTotalInserted() {

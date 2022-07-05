@@ -27,8 +27,8 @@
             "type" : "integer"
           },
           "lastRunningTime" : {
-            "description" : "Duration in milliseconds, since the job was (re)started",
-            "type" : "integer"
+            "description" : "Last running time, since the job was (re)started",
+            "type" : "string"
           },
           "lastTotalRecords" : {
             "description" : "Records retrieved during last run",
