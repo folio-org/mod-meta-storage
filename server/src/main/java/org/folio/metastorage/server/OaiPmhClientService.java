@@ -48,13 +48,7 @@ public class OaiPmhClientService {
 
   HttpClient httpClient;
 
-  private static final String STATUS_LITERAL = "status";
-
   private static final String RESUMPTION_TOKEN_LITERAL = "resumptionToken";
-
-  private static final String IDLE_LITERAL = "idle";
-
-  private static final String RUNNING_LITERAL = "running";
 
   private static final String CONFIG_LITERAL = "config";
 
@@ -141,11 +135,18 @@ public class OaiPmhClientService {
       oaiPmhStatus = json.mapTo(OaiPmhStatus.class);
     } else {
       oaiPmhStatus = new OaiPmhStatus();
-      oaiPmhStatus.setStatus(IDLE_LITERAL);
+      oaiPmhStatus.setStatusIdle();
       oaiPmhStatus.setTotalRecords(0L);
       oaiPmhStatus.setTotalRequests(0);
+    }
+    // because these fields did not exist in earlier mod-meta-storage versions.
+    if (oaiPmhStatus.getTotalDeleted() == null) {
       oaiPmhStatus.setTotalDeleted(0L);
+    }
+    if (oaiPmhStatus.getTotalInserted() == null) {
       oaiPmhStatus.setTotalInserted(0L);
+    }
+    if (oaiPmhStatus.getTotalUpdated() == null) {
       oaiPmhStatus.setTotalUpdated(0L);
     }
     JsonObject config = row.getJsonObject(CONFIG_LITERAL);
@@ -260,28 +261,32 @@ public class OaiPmhClientService {
     tupleList.add(id);
     if (config != null) {
       tupleList.add(config);
-      qry.append("config = $" + tupleList.size());
+      qry.append("config = $");
+      qry.append(tupleList.size());
     }
     if (job != null) {
       tupleList.add(JsonObject.mapFrom(job));
       if (tupleList.size() > 2) {
         qry.append(",");
       }
-      qry.append("job = $" + tupleList.size());
+      qry.append("job = $");
+      qry.append(tupleList.size());
     }
     if (stop != null) {
       tupleList.add(stop);
       if (tupleList.size() > 2) {
         qry.append(",");
       }
-      qry.append("stop = $" + tupleList.size());
+      qry.append("stop = $");
+      qry.append(tupleList.size());
     }
     if (owner != null) {
       tupleList.add(owner);
       if (tupleList.size() > 2) {
         qry.append(",");
       }
-      qry.append("owner = $" + tupleList.size());
+      qry.append("owner = $");
+      qry.append(tupleList.size());
     }
     qry.append(B_WHERE_ID1_LITERAL);
     return connection.preparedQuery(qry.toString())
@@ -332,7 +337,7 @@ public class OaiPmhClientService {
   }
 
   Future<Void> startJob(Storage storage, String id, OaiPmhStatus job) {
-    job.setStatus(RUNNING_LITERAL);
+    job.setStatusRunning();
     job.setLastTotalRecords(0L);
     job.setLastRecsPerSec(null);
     job.setLastStartedTimestampRaw(LocalDateTime.now(ZoneOffset.UTC));
@@ -372,8 +377,7 @@ public class OaiPmhClientService {
             rowSet.forEach(x -> {
               String id2 = x.getString("id");
               OaiPmhStatus job = getJob(x, id2);
-              String status = job.getStatus();
-              if (!IDLE_LITERAL.equals(status)) {
+              if (job.isRunning()) {
                 futures.add(updateJob(storage, id2, null, null, Boolean.TRUE, null).mapEmpty());
               }
             });
@@ -388,8 +392,7 @@ public class OaiPmhClientService {
             HttpResponse.responseError(ctx, 404, id);
             return Future.succeededFuture();
           }
-          String status = job.getStatus();
-          if (IDLE_LITERAL.equals(status)) {
+          if (!job.isRunning()) {
             HttpResponse.responseError(ctx, 400, "not running");
             return Future.succeededFuture();
           }
@@ -511,11 +514,29 @@ public class OaiPmhClientService {
     return httpClient.request(requestOptions).compose(HttpClientRequest::send);
   }
 
-  private void endIt(OaiParserStream oaiParserStream, Promise<Void> promise) {
+  static void endResponse(StringBuilder resumptionToken, Promise<Void> promise, OaiPmhStatus job) {
 
+    JsonObject config = job.getConfig();
+    LocalDateTime started = job.getLastStartedTimestampRaw();
+    long runningTimeMilli =
+        Duration.between(started, job.getLastActiveTimestampRaw()).toMillis();
+    job.setLastRunningTime(runningTimeMilli);
+    if (runningTimeMilli > 0) {
+      long val = job.getLastTotalRecords() * 1000L / runningTimeMilli;
+      job.setLastRecsPerSec(val);
+    }
+    String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
+    if (resumptionToken.length() == 0
+        || resumptionToken.toString().equals(oldResumptionToken)) {
+      config.remove(RESUMPTION_TOKEN_LITERAL);
+      promise.fail((String) null);
+    } else {
+      config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
+      promise.complete();
+    }
   }
 
-  private Future<Void> listRecordsResponse(Storage storage, OaiPmhStatus job, JsonObject config,
+  private Future<Void> listRecordsResponse(Storage storage, OaiPmhStatus job,
       JsonArray matchKeyConfigs, HttpClientResponse res) {
     job.setTotalRequests(job.getTotalRequests() + 1);
     if (res.statusCode() != 200) {
@@ -533,35 +554,45 @@ public class OaiPmhClientService {
     XmlParser xmlParser = XmlParser.newParser(res);
     XmlMetadataStreamParser<JsonObject> metadataParser
         = new XmlMetadataParserMarcInJson();
+    JsonObject config = job.getConfig();
     SourceId sourceId = new SourceId(config.getString("sourceId"));
-    AtomicInteger cnt = new AtomicInteger();
-    AtomicInteger cnt2 = new AtomicInteger();
-    AtomicInteger inserted = new AtomicInteger();
-    AtomicInteger updated = new AtomicInteger();
-    AtomicInteger deleted = new AtomicInteger();
     Promise<Void> promise = Promise.promise();
+    AtomicInteger queue = new AtomicInteger();
+    AtomicBoolean ended = new AtomicBoolean();
+    StringBuilder resumptionToken = new StringBuilder();
     OaiParserStream<JsonObject> oaiParserStream =
         new OaiParserStream<>(xmlParser,
             oaiRecord -> {
-              cnt.incrementAndGet();
               // populate from with newest datestamp from all responses
               String datestamp = oaiRecord.getDatestamp();
               String from = config.getString("from");
               if (from == null || datestamp.compareTo(from) > 0) {
                 config.put("from", datestamp);
               }
-              xmlParser.pause();
+              queue.incrementAndGet();
+              // is queue full: 4 because that's the Postgres client pool size
+              if (Boolean.FALSE.equals(ended.get()) && queue.get() >= 4) {
+                xmlParser.pause();
+              }
               ingestRecord(storage, oaiRecord, sourceId, matchKeyConfigs)
                   .map(upd -> {
-                    cnt2.incrementAndGet();
-                    if (upd == null) {
-                      deleted.incrementAndGet();
-                    } else if (Boolean.TRUE.equals(upd)) {
-                      inserted.incrementAndGet();
-                    } else {
-                      updated.incrementAndGet();
+                    queue.decrementAndGet();
+                    // drain ?
+                    if (queue.get() < 2) {
+                      xmlParser.resume();
                     }
-                    xmlParser.resume();
+                    job.setTotalRecords(job.getTotalRecords() + 1);
+                    job.setLastTotalRecords(job.getLastTotalRecords() + 1);
+                    if (upd == null) {
+                      job.setTotalDeleted(job.getTotalDeleted() + 1);
+                    } else if (Boolean.TRUE.equals(upd)) {
+                      job.setTotalInserted(job.getTotalInserted() + 1);
+                    } else {
+                      job.setTotalUpdated(job.getTotalUpdated() + 1);
+                    }
+                    if (queue.get() == 0 && Boolean.TRUE.equals(ended.get())) {
+                      endResponse(resumptionToken, promise, job);
+                    }
                     return null;
                   })
                   .onFailure(x -> xmlParser.resume());
@@ -569,29 +600,13 @@ public class OaiPmhClientService {
             metadataParser);
     oaiParserStream.exceptionHandler(promise::fail);
     xmlParser.endHandler(end -> {
-      log.info("endHandler cnt={} cnt2={}", cnt.get(), cnt2.get());
-      job.setTotalDeleted(job.getTotalDeleted() + deleted.get());
-      job.setTotalInserted(job.getTotalInserted() + inserted.get());
-      job.setTotalUpdated(job.getTotalUpdated() + updated.get());
-      job.setTotalRecords(job.getTotalRecords() + cnt.get());
-      job.setLastTotalRecords(job.getLastTotalRecords() + cnt.get());
-      LocalDateTime started = job.getLastStartedTimestampRaw();
-      long runningTimeMilli =
-          Duration.between(started, job.getLastActiveTimestampRaw()).toMillis();
-      job.setLastRunningTime(runningTimeMilli);
-      if (runningTimeMilli > 0) {
-        long val = job.getLastTotalRecords() * 1000L / runningTimeMilli;
-        job.setLastRecsPerSec(val);
+      ended.set(true);
+      String tmp = oaiParserStream.getResumptionToken();
+      if (tmp != null) {
+        resumptionToken.append(tmp);
       }
-      String resumptionToken = oaiParserStream.getResumptionToken();
-      String oldResumptionToken = config.getString(RESUMPTION_TOKEN_LITERAL);
-      if (resumptionToken == null
-          || resumptionToken.equals(oldResumptionToken)) {
-        config.remove(RESUMPTION_TOKEN_LITERAL);
-        promise.fail((String) null);
-      } else {
-        config.put(RESUMPTION_TOKEN_LITERAL, resumptionToken);
-        promise.complete();
+      if (queue.get() == 0) {
+        endResponse(resumptionToken, promise, job);
       }
     });
     return promise.future();
@@ -615,7 +630,7 @@ public class OaiPmhClientService {
                 .compose(matchKeyConfigs ->
                     listRecordsRequest(config)
                         .compose(res ->
-                            listRecordsResponse(storage, job, config, matchKeyConfigs, res)))
+                            listRecordsResponse(storage, job, matchKeyConfigs, res)))
                 .map(0)
                 .recover(e -> {
                   if (e instanceof VertxException && "Connection was closed".equals(e.getMessage())
@@ -636,7 +651,7 @@ public class OaiPmhClientService {
               )
               .onFailure(e -> {
                 // stop either due to error or no resumption token or "stop"
-                job.setStatus(IDLE_LITERAL);
+                job.setStatusIdle();
                 if (e.getMessage() != null) {
                   log.error(e.getMessage(), e);
                   job.setError(e.getMessage());

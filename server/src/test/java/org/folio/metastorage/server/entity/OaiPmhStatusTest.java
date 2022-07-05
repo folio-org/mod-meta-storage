@@ -5,11 +5,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 import io.vertx.core.json.JsonObject;
-import org.junit.Test;
-
 import java.time.LocalDateTime;
-import java.time.ZoneId;
 import java.time.ZoneOffset;
+import org.junit.Test;
 
 public class OaiPmhStatusTest {
 
@@ -34,12 +32,12 @@ public class OaiPmhStatusTest {
   @Test
   public void config() {
     OaiPmhStatus oaiPmhStatus = new OaiPmhStatus();
-    JsonObject config = new JsonObject().put("id", "myid");
+    JsonObject config = new JsonObject().put("id", "myidentifier");
     oaiPmhStatus.setConfig(config);
     JsonObject o = JsonObject.mapFrom(oaiPmhStatus);
     assertThat(o, is(new JsonObject()));
     JsonObject o1 = oaiPmhStatus.getJsonObject();
-    assertThat(o1, is(new JsonObject().put("config", new JsonObject().put("id", "myid"))));
+    assertThat(o1, is(new JsonObject().put("config", new JsonObject().put("id", "myidentifier"))));
   }
 
   @Test

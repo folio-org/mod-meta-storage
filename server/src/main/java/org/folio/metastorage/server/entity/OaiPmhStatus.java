@@ -139,6 +139,21 @@ public class OaiPmhStatus {
     this.status = status;
   }
 
+  @JsonIgnore
+  public void setStatusIdle() {
+    setStatus("idle");
+  }
+
+  @JsonIgnore
+  public void setStatusRunning() {
+    setStatus("running");
+  }
+
+  @JsonIgnore
+  public boolean isRunning() {
+    return "running".equals(status);
+  }
+
   public Long getTotalDeleted() {
     return totalDeleted;
   }

@@ -45,11 +45,19 @@
             "enum" : ["idle", "running"]
           },
           "totalRecords" : {
-            "description" : "Total records fetched",
+            "description" : "Total number of records fetched",
             "type" : "integer"
           },
           "totalDeleted" : {
             "description" : "Total number of deleted records",
+            "type" : "integer"
+          },
+          "totalInserted" : {
+            "description" : "Total number of inserted records",
+            "type" : "integer"
+          },
+          "totalUpdated" : {
+            "description" : "Total number of updated records",
             "type" : "integer"
           },
           "totalRequests" : {
