@@ -201,7 +201,7 @@ public class OaiPmhStatus {
     JsonObject o = JsonObject.mapFrom(this)
         .put("config", config);
     if (lastRunningTime != null) {
-      Long s = lastRunningTime / 1000L;
+      long s = lastRunningTime / 1000L;
       String readable = String.format("%d days %02d hrs %02d mins %02d secs",
           s / (24 * 3600), (s % (24 * 3600)) / 3600, (s % 3600) / 60, (s % 60));
       o.put("lastRunningTime", readable);
