@@ -27,7 +27,7 @@
             "type" : "integer"
           },
           "lastRunningTime" : {
-            "description" : "Measured from when the job is last (re)started. Not cleared",
+            "description" : "Duration in milliseconds, since the job was (re)started",
             "type" : "integer"
           },
           "lastTotalRecords" : {
