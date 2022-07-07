@@ -85,9 +85,16 @@ public final class Util {
   }
 
   /**
-   * Returns the number of units (DAYS or SECONDS, depending on date granularity)
-   * between 'now' and 'datestamp' arguments. If 'datestamp' is before 'now' the
-   * result is negative.
+   * Get current datestamp in UTC without nano-seconds component.
+   * @return truncated UTC datetime
+   */
+  public static LocalDateTime getOaiNow() {
+    return LocalDateTime.now(ZoneOffset.UTC).truncatedTo(ChronoUnit.SECONDS);
+  }
+
+  /**
+   * Returns the number of units, that is DAYS or HOURS if datestamp includes time,
+   * between 'now' and 'datestamp' arguments. Negative if 'datestamp' is before now.
    * @param now LocalDateTime that represents "now"
    * @param datestamp datestamp to compare
    * @return number of units between now and the datestamp
@@ -95,7 +102,9 @@ public final class Util {
   public static long unitsBetween(LocalDateTime now, String datestamp) {
     LocalDateTime ds = parseFrom(datestamp);
     if (datestamp.length() > 10) {
-      return ChronoUnit.SECONDS.between(now, ds);
+      //we go for HOURS rather than SECONDS or MINUTES to account
+      //for potentially long batch processing time on the server
+      return ChronoUnit.HOURS.between(now, ds);
     }
     return ChronoUnit.DAYS.between(now, ds);
   }
