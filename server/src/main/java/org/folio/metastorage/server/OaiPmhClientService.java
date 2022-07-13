@@ -481,7 +481,7 @@ public class OaiPmhClientService {
 
   Future<Boolean> ingestRecord(
       Storage storage, OaiRecord<JsonObject> oaiRecord,
-      SourceId sourceId, JsonArray matchKeyConfigs) {
+      SourceId sourceId, int sourceVersion, JsonArray matchKeyConfigs) {
     try {
       JsonObject globalRecord = new JsonObject();
       globalRecord.put("localId", oaiRecord.getIdentifier());
@@ -490,7 +490,8 @@ public class OaiPmhClientService {
       } else {
         globalRecord.put("payload", new JsonObject().put("marc", oaiRecord.getMetadata()));
       }
-      return storage.ingestGlobalRecord(vertx, sourceId, globalRecord, matchKeyConfigs);
+      return storage.ingestGlobalRecord(vertx, sourceId, sourceVersion,
+          globalRecord, matchKeyConfigs);
     } catch (Exception e) {
       log.error("{}", e.getMessage(), e);
       return Future.failedFuture(e);
@@ -536,7 +537,7 @@ public class OaiPmhClientService {
 
   /**
    * If the last datestamp is at least 1 DAY or 1 HOUR before "now"
-   * we bump it by 1 DAY or 1 SEC respectively, to avoid reharvesting 
+   * we bump it by 1 DAY or 1 SEC respectively, to avoid reharvesting
    * the same files next time.
    * @param config job config
    */
@@ -570,6 +571,7 @@ public class OaiPmhClientService {
     Promise<Void> promise = Promise.promise();
     AtomicInteger queue = new AtomicInteger();
     AtomicBoolean ended = new AtomicBoolean();
+    int sourceVersion = config.getInteger("sourceVersion", 1);
     StringBuilder resumptionToken = new StringBuilder();
     OaiParserStream<JsonObject> oaiParserStream =
         new OaiParserStream<>(xmlParser,
@@ -585,7 +587,8 @@ public class OaiPmhClientService {
               if (Boolean.FALSE.equals(ended.get()) && queue.get() >= 4) {
                 xmlParser.pause();
               }
-              ingestRecord(storage, oaiRecord, sourceId, matchKeyConfigs)
+              ingestRecord(storage, oaiRecord, sourceId, sourceVersion,
+                  matchKeyConfigs)
                   .map(upd -> {
                     queue.decrementAndGet();
                     // drain ?
