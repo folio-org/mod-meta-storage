@@ -3085,7 +3085,7 @@ public class MainVerticleTest {
         .body("items[0].status", is("idle"))
         .body("items[0].lastTotalRecords", is(10))
         .body("items[0].lastRunningTime", startsWith("0 days 00 hrs 00 mins 0"))
-        .body("items[0].lastRecsPerSec", greaterThanOrEqualTo(100))
+        .body("items[0].lastRecsPerSec", greaterThanOrEqualTo(10))
         .body("items[0].totalDeleted", is(0))
         .body("items[0].totalInserted", is(10))
         .body("items[0].totalUpdated", is(0))
