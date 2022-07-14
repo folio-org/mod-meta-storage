@@ -241,10 +241,14 @@ public class OaiPmhClientService {
       if (existing != null) {
         JsonObject existingConfig = existing.getConfig();
         int existingVersion = existingConfig.getInteger(ClusterBuilder.SOURCE_VERSION_LABEL, 1);
-        if (existingVersion == config.getInteger(ClusterBuilder.SOURCE_VERSION_LABEL, 1)
-            && existingConfig.getString(ClusterBuilder.SOURCE_ID_LABEL, "")
-            .equals(config.getString(ClusterBuilder.SOURCE_ID_LABEL, ""))
-            && !existingConfig.getString("set", "").equals(config.getString("set", ""))) {
+        int newVersion = config.getInteger(ClusterBuilder.SOURCE_VERSION_LABEL, 1);
+        String existingSourceId = existingConfig.getString(ClusterBuilder.SOURCE_ID_LABEL, "");
+        String newSourceId = config.getString(ClusterBuilder.SOURCE_ID_LABEL, "");
+        String existingSet = existingConfig.getString("set", "");
+        String newSet = config.getString("set", "");
+        // increment if same source ID and version *and* the set is changed.
+        if (existingVersion == newVersion && existingSourceId.equals(newSourceId)
+            && !existingSet.equals(newSet)) {
           config.put(ClusterBuilder.SOURCE_VERSION_LABEL, existingVersion + 1);
           config.remove("from");
         }
