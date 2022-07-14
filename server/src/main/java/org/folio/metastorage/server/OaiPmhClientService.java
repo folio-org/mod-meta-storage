@@ -34,6 +34,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.folio.metastorage.oai.OaiParserStream;
 import org.folio.metastorage.oai.OaiRecord;
+import org.folio.metastorage.server.entity.ClusterBuilder;
 import org.folio.metastorage.server.entity.OaiPmhStatus;
 import org.folio.metastorage.util.SourceId;
 import org.folio.metastorage.util.XmlMetadataParserMarcInJson;
@@ -239,11 +240,12 @@ public class OaiPmhClientService {
     return getJob(storage, id).compose(existing -> {
       if (existing != null) {
         JsonObject existingConfig = existing.getConfig();
-        int existingVersion = existingConfig.getInteger("sourceVersion", 1);
-        if (existingVersion == config.getInteger("sourceVersion", 1)
-            && existingConfig.getString("sourceId", "").equals(config.getString("sourceId", ""))
+        int existingVersion = existingConfig.getInteger(ClusterBuilder.SOURCE_VERSION_LABEL, 1);
+        if (existingVersion == config.getInteger(ClusterBuilder.SOURCE_VERSION_LABEL, 1)
+            && existingConfig.getString(ClusterBuilder.SOURCE_ID_LABEL, "")
+            .equals(config.getString(ClusterBuilder.SOURCE_ID_LABEL, ""))
             && !existingConfig.getString("set", "").equals(config.getString("set", ""))) {
-          config.put("sourceVersion", existingVersion + 1);
+          config.put(ClusterBuilder.SOURCE_VERSION_LABEL, existingVersion + 1);
           config.remove("from");
         }
       }
