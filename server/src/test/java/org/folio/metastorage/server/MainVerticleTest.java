@@ -3087,6 +3087,12 @@ public class MainVerticleTest {
     config.put("from", hourAgoLong);
     OaiPmhClientService.moveFromDate(config);
     Assert.assertEquals(hourAgoSecondLater, config.getString("from"));
+
+    config = new JsonObject();
+    String from = "2022-07-13T11:42:59Z";
+    config.put("from", from);
+    OaiPmhClientService.moveFromDate(config);
+    Assert.assertEquals("2022-07-13T11:43:00Z", config.getString("from"));
   }
 
   /**
