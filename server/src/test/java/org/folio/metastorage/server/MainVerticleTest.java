@@ -28,7 +28,6 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -67,8 +66,6 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.testcontainers.containers.PostgreSQLContainer;
 import org.xml.sax.SAXException;
-
-import com.oracle.truffle.js.builtins.intl.DateTimeFormatPrototypeBuiltins.DateTimeFormatPrototype;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
@@ -854,8 +851,13 @@ public class MainVerticleTest {
   }
 
   static void ingestRecords(JsonArray records, String sourceId) {
+    ingestRecords(records, sourceId, 1);
+  }
+
+  static void ingestRecords(JsonArray records, String sourceId, int sourceVersion) {
     JsonObject request = new JsonObject()
         .put("sourceId", sourceId)
+        .put("sourceVersion", sourceVersion)
         .put("records", records);
 
     RestAssured.given()
@@ -1967,7 +1969,7 @@ public class MainVerticleTest {
                 )
             )
         );
-        JsonArray ingest1b = new JsonArray()
+    JsonArray ingest1b = new JsonArray()
         .add(new JsonObject()
             .put("localId", "S102")
             .put("payload", new JsonObject()
@@ -1997,114 +1999,118 @@ public class MainVerticleTest {
             )
         );
     //post records individually, otherwise the order of clusters and records in clusters is non-deterministic
-    ingestRecords(ingest1a, SOURCE_ID_1);
-    ingestRecords(ingest1b, SOURCE_ID_1);
+    ingestRecords(ingest1a, SOURCE_ID_1, 2);
+    ingestRecords(ingest1b, SOURCE_ID_1, 2);
 
     JsonArray expectedIssn = new JsonArray()
-      .add(new JsonObject()
-          .put("leader", "00914naa  2200337   450 ")
-          .put("fields", new JsonArray()
+        .add(new JsonObject()
+            .put("leader", "00914naa  2200337   450 ")
+            .put("fields", new JsonArray()
                 .add(new JsonObject()
-                  .put("999", new JsonObject()
-                    .put("ind1", "1")
-                    .put("ind2", "0")
-                    .put("subfields", new JsonArray()
-                      .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
-                      .add(new JsonObject().put("m", "01"))
-                      .add(new JsonObject().put("l", "S101"))
-                      .add(new JsonObject().put("s", "SOURCE-1"))
-                      .add(new JsonObject().put("l", "S102"))
-                      .add(new JsonObject().put("s", "SOURCE-1"))
+                    .put("999", new JsonObject()
+                        .put("ind1", "1")
+                        .put("ind2", "0")
+                        .put("subfields", new JsonArray()
+                            .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
+                            .add(new JsonObject().put("m", "01"))
+                            .add(new JsonObject().put("l", "S101"))
+                            .add(new JsonObject().put("s", "SOURCE-1"))
+                            .add(new JsonObject().put("v", "2"))
+                            .add(new JsonObject().put("l", "S102"))
+                            .add(new JsonObject().put("s", "SOURCE-1"))
+                            .add(new JsonObject().put("v", "2"))
+                        )
                     )
-                  )
                 )
                 .add(new JsonObject()
-                  .put("999", new JsonObject()
-                      .put("ind1", " ")
-                      .put("ind2", " ")
-                      .put("subfields", new JsonArray()
-                          .add(new JsonObject()
-                            .put("a", "S101a")
-                          )
-                          .add(new JsonObject()
-                            .put("b", "S101b")
-                          )
-                          .add(new JsonObject()
-                            .put("a", "S102a")
-                          )
-                          .add(new JsonObject()
-                            .put("b", "S102b")
-                          )
-                      )
-                  )
+                    .put("999", new JsonObject()
+                        .put("ind1", " ")
+                        .put("ind2", " ")
+                        .put("subfields", new JsonArray()
+                            .add(new JsonObject()
+                                .put("a", "S101a")
+                            )
+                            .add(new JsonObject()
+                                .put("b", "S101b")
+                            )
+                            .add(new JsonObject()
+                                .put("a", "S102a")
+                            )
+                            .add(new JsonObject()
+                                .put("b", "S102b")
+                            )
+                        )
+                    )
                 )
-          )
-      );
+            )
+        );
 
     JsonArray expectedIsbn = new JsonArray()
-      .add(new JsonObject()
-        .put("leader", "00914naa  2200337   450 ")
-        .put("fields", new JsonArray()
-            .add(new JsonObject()
-              .put("999", new JsonObject()
-                .put("ind1", "1")
-                .put("ind2", "0")
-                .put("subfields", new JsonArray()
-                  .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
-                  .add(new JsonObject().put("m", "1"))
-                  .add(new JsonObject().put("l", "S101"))
-                  .add(new JsonObject().put("s", "SOURCE-1"))
-                )
-              )
-            )
-            .add(new JsonObject()
-                .put("999", new JsonObject()
-                    .put("ind1", " ")
-                    .put("ind2", " ")
-                    .put("subfields", new JsonArray()
-                        .add(new JsonObject()
-                            .put("a", "S101a")
+        .add(new JsonObject()
+            .put("leader", "00914naa  2200337   450 ")
+            .put("fields", new JsonArray()
+                .add(new JsonObject()
+                    .put("999", new JsonObject()
+                        .put("ind1", "1")
+                        .put("ind2", "0")
+                        .put("subfields", new JsonArray()
+                            .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
+                            .add(new JsonObject().put("m", "1"))
+                            .add(new JsonObject().put("l", "S101"))
+                            .add(new JsonObject().put("s", "SOURCE-1"))
+                            .add(new JsonObject().put("v", "2"))
                         )
-                        .add(new JsonObject()
-                            .put("b", "S101b")
-                      )
+                    )
+                )
+                .add(new JsonObject()
+                    .put("999", new JsonObject()
+                        .put("ind1", " ")
+                        .put("ind2", " ")
+                        .put("subfields", new JsonArray()
+                            .add(new JsonObject()
+                                .put("a", "S101a")
+                            )
+                            .add(new JsonObject()
+                                .put("b", "S101b")
+                            )
+                        )
                     )
                 )
             )
         )
-      )
-      .add(new JsonObject()
-        .put("leader", "00914naa  2200337   450 ")
-        .put("fields", new JsonArray()
-          .add(new JsonObject()
-              .put("999", new JsonObject()
-              .put("ind1", "1")
-              .put("ind2", "0")
-              .put("subfields", new JsonArray()
-                  .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
-                  .add(new JsonObject().put("m", "2"))
-                  .add(new JsonObject().put("m", "3"))
-                  .add(new JsonObject().put("l", "S102"))
-                  .add(new JsonObject().put("s", "SOURCE-1"))
-              )
-              )
-          )
-          .add(new JsonObject()
-              .put("999", new JsonObject()
-                  .put("ind1", " ")
-                  .put("ind2", " ")
-                  .put("subfields", new JsonArray()
-                      .add(new JsonObject()
-                          .put("a", "S102a")
-                      )
-                      .add(new JsonObject()
-                          .put("b", "S102b")
-                      )
-                  )
-              )
-          )
-        )
-      );
+        .add(new JsonObject()
+            .put("leader", "00914naa  2200337   450 ")
+            .put("fields", new JsonArray()
+                .add(new JsonObject()
+                    .put("999", new JsonObject()
+                        .put("ind1", "1")
+                        .put("ind2", "0")
+                        .put("subfields", new JsonArray()
+                            .add(new JsonObject().put("i", "DO_NOT_ASSERT"))
+                            .add(new JsonObject().put("m", "2"))
+                            .add(new JsonObject().put("m", "3"))
+                            .add(new JsonObject().put("l", "S102"))
+                            .add(new JsonObject().put("s", "SOURCE-1"))
+                            .add(new JsonObject().put("v", "2"))
+                        )
+                    )
+                )
+                .add(new JsonObject()
+                    .put("999", new JsonObject()
+                        .put("ind1", " ")
+                        .put("ind2", " ")
+                        .put("subfields", new JsonArray()
+                            .add(new JsonObject()
+                                .put("a", "S102a")
+                            )
+                            .add(new JsonObject()
+                                .put("b", "S102b")
+                            )
+                        )
+                    )
+                )
+            )
+        );
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2115,7 +2121,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    // verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn);
+    verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn);
 
     s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2255,7 +2261,7 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("text/xml")
         .extract().body().asString();
-    // verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn2);
+    verifyOaiResponse(s, "ListRecords", identifiers, 1, expectedIssn2);
 
     oaiConfig = new JsonObject()
         .put("transformer", "empty");
@@ -2801,7 +2807,9 @@ public class MainVerticleTest {
 
     JsonObject oaiPmhClient = new JsonObject()
         .put("url", "http://localhost:" + OKAPI_PORT + " /meta-storage/oai")
+        .put("set", "set-1")
         .put("sourceId", "source-1")
+        .put("sourceVersion", 17)
         .put("id", PMH_CLIENT_ID);
 
     RestAssured.given()
@@ -2829,12 +2837,13 @@ public class MainVerticleTest {
         .post("/meta-storage/pmh-clients")
         .then().statusCode(400);
 
-    RestAssured.given()
+    String s = RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID)
         .then().statusCode(200)
         .contentType("application/json")
-        .body(Matchers.is(oaiPmhClient.encode()));
+        .extract().body().asString();
+    Assert.assertEquals(new JsonObject(s), oaiPmhClient);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2859,8 +2868,55 @@ public class MainVerticleTest {
         .then().statusCode(200)
         .contentType("application/json")
         .body("items[0].id", is(PMH_CLIENT_ID))
+        .body("items[0].sourceVersion", is(17))
         .body("items[0].url", is(oaiPmhClient.getString("url")))
         .body("resultInfo.totalRecords", is(1));
+
+    oaiPmhClient.put("sourceId", "source-2");
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .put("/meta-storage/pmh-clients/" + PMH_CLIENT_ID)
+        .then().statusCode(204);
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID)
+        .then().statusCode(200)
+        .contentType("application/json")
+        .extract().body().asString();
+    Assert.assertEquals(new JsonObject(s), oaiPmhClient);
+
+    oaiPmhClient.put("set", "set-2");
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .put("/meta-storage/pmh-clients/" + PMH_CLIENT_ID)
+        .then().statusCode(204);
+    oaiPmhClient.put("sourceVersion", 18);
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID)
+        .then().statusCode(200)
+        .contentType("application/json")
+        .extract().body().asString();
+    Assert.assertEquals(new JsonObject(s), oaiPmhClient);
+
+    oaiPmhClient.put("sourceVersion", 2);
+    RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .header("Content-Type", "application/json")
+        .body(oaiPmhClient.encode())
+        .put("/meta-storage/pmh-clients/" + PMH_CLIENT_ID)
+        .then().statusCode(204);
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .get("/meta-storage/pmh-clients/" + PMH_CLIENT_ID)
+        .then().statusCode(200)
+        .contentType("application/json")
+        .extract().body().asString();
+    Assert.assertEquals(new JsonObject(s), oaiPmhClient);
 
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)

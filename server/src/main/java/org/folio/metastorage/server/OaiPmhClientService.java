@@ -236,15 +236,27 @@ public class OaiPmhClientService {
     String id = Util.getParameterString(params.pathParameter("id"));
     JsonObject config = ctx.getBodyAsJson();
     config.remove("id");
-    return updateJob(storage, id, config, null, null, null)
-        .map(found -> {
-          if (Boolean.TRUE.equals(found)) {
-            ctx.response().setStatusCode(204).end();
-          } else {
-            HttpResponse.responseError(ctx, 404, id);
-          }
-          return null;
-        });
+    return getJob(storage, id).compose(existing -> {
+      if (existing != null) {
+        JsonObject existingConfig = existing.getConfig();
+        int existingVersion = existingConfig.getInteger("sourceVersion", 1);
+        if (existingVersion == config.getInteger("sourceVersion", 1)
+            && existingConfig.getString("sourceId", "").equals(config.getString("sourceId", ""))
+            && !existingConfig.getString("set", "").equals(config.getString("set", ""))) {
+          config.put("sourceVersion", existingVersion + 1);
+          config.remove("from");
+        }
+      }
+      return updateJob(storage, id, config, null, null, null)
+          .map(found -> {
+            if (Boolean.TRUE.equals(found)) {
+              ctx.response().setStatusCode(204).end();
+            } else {
+              HttpResponse.responseError(ctx, 404, id);
+            }
+            return null;
+          });
+    });
   }
 
   static Future<Boolean> updateJob(
