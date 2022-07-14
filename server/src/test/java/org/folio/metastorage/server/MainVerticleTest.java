@@ -1376,7 +1376,7 @@ public class MainVerticleTest {
     RestAssured.given()
         .header(XOkapiHeaders.TENANT, TENANT_1)
         .header("Content-Type", "application/json")
-        .param("query", "localId=S101")
+        .param("query", "sourceVersion=1")
         .delete("/meta-storage/records")
         .then().statusCode(204);
 

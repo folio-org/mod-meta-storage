@@ -129,8 +129,10 @@ public class Storage {
             "DROP INDEX IF EXISTS idx_local_id",
             "ALTER TABLE " + globalRecordTable + " ADD COLUMN IF NOT EXISTS"
                 + " source_version integer DEFAULT 1",
-            "CREATE UNIQUE INDEX IF NOT EXISTS idx_local_id2 ON " + globalRecordTable
+            "CREATE UNIQUE INDEX IF NOT EXISTS idx_local_source ON " + globalRecordTable
                 + " (local_id, source_id, source_version)",
+            "CREATE INDEX IF NOT EXISTS idx_source ON " + globalRecordTable
+                + " (source_id, source_version)",
             CREATE_IF_NO_EXISTS + matchKeyConfigTable
                 + "(id VARCHAR NOT NULL PRIMARY KEY,"
                 + " method VARCHAR, "
