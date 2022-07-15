@@ -281,7 +281,7 @@ public final class OaiService {
     return conn.preparedQuery("SELECT match_value FROM " + storage.getClusterValuesTable()
             + " WHERE cluster_id = $1")
         .execute(Tuple.of(clusterId))
-        .map(rowSet -> cb.matchValues(rowSet));
+        .map(cb::matchValues);
   }
 
   static void writeResumptionToken(RoutingContext ctx, ResumptionToken token) {
