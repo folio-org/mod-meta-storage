@@ -2724,6 +2724,8 @@ public class MainVerticleTest {
         .body("matchValuesPerCluster.3", is(1))
         .body("recordsPerCluster.1", is(4))
         .body("recordsPerCluster.2", is(1))
+        .body("recordsPerClusterSample.1", hasSize(3))
+        .body("recordsPerClusterSample.2", hasSize(1))
     ;
 
     String sourceId2 = "SOURCE-2";
@@ -2751,6 +2753,8 @@ public class MainVerticleTest {
         .body("matchValuesPerCluster.3", is(1))
         .body("recordsPerCluster.1", is(5))
         .body("recordsPerCluster.2", is(1))
+        .body("recordsPerClusterSample.1", hasSize(3))
+        .body("recordsPerClusterSample.2", hasSize(1))
     ;
 
     RestAssured.given()

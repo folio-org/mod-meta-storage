@@ -768,8 +768,8 @@ public class Storage {
     final Set<String> values = new HashSet<>();
     final Set<UUID> recordIds = new HashSet<>();
     final Map<Integer, Integer> matchValuesPerCluster = new HashMap<>();
-
     final Map<Integer, Integer> recordsPerCluster = new HashMap<>();
+    final Map<Integer, JsonArray> recordsPerClusterSample = new HashMap<>();
   }
 
   /**
@@ -796,7 +796,13 @@ public class Storage {
                 if (!clusterId.equals(st.clusterId)) {
                   if (st.clusterId != null) {
                     st.matchValuesPerCluster.merge(st.values.size(), 1, (x, y) -> x + y);
-                    st.recordsPerCluster.merge(st.recordIds.size(), 1, (x, y) -> x + y);
+                    int size = st.recordIds.size();
+                    st.recordsPerCluster.merge(size, 1, (x, y) -> x + y);
+                    JsonArray samples = st.recordsPerClusterSample.computeIfAbsent(size,
+                        x -> new JsonArray());
+                    if (samples.size() < 3) {
+                      samples.add(st.clusterId.toString());
+                    }
                   }
                   st.clustersTotal++;
                   st.values.clear();
@@ -813,7 +819,13 @@ public class Storage {
               stream.endHandler(end -> {
                 if (st.clusterId != null) {
                   st.matchValuesPerCluster.merge(st.values.size(), 1, (x, y) -> x + y);
-                  st.recordsPerCluster.merge(st.recordIds.size(), 1, (x, y) -> x + y);
+                  int size = st.recordIds.size();
+                  st.recordsPerCluster.merge(size, 1, (x, y) -> x + y);
+                  JsonArray samples = st.recordsPerClusterSample.computeIfAbsent(size,
+                      x -> new JsonArray());
+                  if (samples.size() < 3) {
+                    samples.add(st.clusterId.toString());
+                  }
                 }
                 JsonObject matchValuesPer = new JsonObject();
                 st.matchValuesPerCluster.forEach((k, v) ->
@@ -824,11 +836,15 @@ public class Storage {
                   recordsPer.put(Integer.toString(k), v);
                   totalRecs.addAndGet(k * v);
                 });
+                JsonObject clusterSamplePer = new JsonObject();
+                st.recordsPerClusterSample.forEach((k, v) ->
+                    clusterSamplePer.put(Integer.toString(k), v));
                 promise.complete(new JsonObject()
                     .put("recordsTotal", totalRecs.get())
                     .put("clustersTotal", st.clustersTotal)
                     .put("matchValuesPerCluster", matchValuesPer)
                     .put("recordsPerCluster", recordsPer)
+                    .put("recordsPerClusterSample", clusterSamplePer)
                 );
               });
               return promise.future();
