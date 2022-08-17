@@ -14,6 +14,7 @@ import io.vertx.core.json.JsonArray;
 import io.vertx.core.json.JsonObject;
 import io.vertx.core.net.NetServer;
 import io.vertx.core.net.NetSocket;
+import io.vertx.ext.unit.Async;
 import io.vertx.ext.unit.TestContext;
 import io.vertx.ext.unit.junit.VertxUnitRunner;
 import io.vertx.ext.web.Router;
@@ -2646,42 +2647,46 @@ public class MainVerticleTest {
     }
     List<String> identifiers = new LinkedList<>();
 
+    Async async = context.async();
     Storage storage = new Storage(vertx, TENANT_1);
     storage.getPool().preparedQuery("UPDATE " + storage.getClusterMetaTable()
             + " SET datestamp = $1")
         .execute(Tuple.of(LocalDateTime.now(ZoneOffset.UTC)))
         .onComplete(context.asyncAssertSuccess(h -> {
-
-          String s = RestAssured.given()
-              .header(XOkapiHeaders.TENANT, TENANT_1)
-              .param("verb", "ListRecords")
-              .param("limit", "2")
-              .get("/meta-storage/oai")
-              .then().statusCode(200)
-              .contentType("text/xml")
-              .extract().body().asString();
-          int iter;
-          for (iter = 1; iter < 10; iter++) {
-            String token = verifyOaiResponseRuntime(s, "ListRecords", identifiers, -1, null);
-            if (token == null) {
-              break;
-            }
-            ResumptionToken tokenClass = new ResumptionToken(token);
-            log.info("token {}", tokenClass.toString());
-            Assert.assertEquals("isbn", tokenClass.getSet());
-            s = RestAssured.given()
-                .header(XOkapiHeaders.TENANT, TENANT_1)
-                .param("verb", "ListRecords")
-                .param("limit", "2")
-                .param("resumptionToken", token)
-                .get("/meta-storage/oai")
-                .then().statusCode(200)
-                .contentType("text/xml")
-                .extract().body().asString();
-          }
-          Assert.assertEquals(5, iter);
-          Assert.assertEquals(10, identifiers.size());
+          async.complete();
         }));
+
+    async.await();
+
+    String s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("verb", "ListRecords")
+        .param("limit", "2")
+        .get("/meta-storage/oai")
+        .then().statusCode(200)
+        .contentType("text/xml")
+        .extract().body().asString();
+    int iter;
+    for (iter = 1; iter < 10; iter++) {
+      String token = verifyOaiResponseRuntime(s, "ListRecords", identifiers, -1, null);
+      if (token == null) {
+        break;
+      }
+      ResumptionToken tokenClass = new ResumptionToken(token);
+      log.info("token {}", tokenClass.toString());
+      Assert.assertEquals("isbn", tokenClass.getSet());
+      s = RestAssured.given()
+          .header(XOkapiHeaders.TENANT, TENANT_1)
+          .param("verb", "ListRecords")
+          .param("limit", "2")
+          .param("resumptionToken", token)
+          .get("/meta-storage/oai")
+          .then().statusCode(200)
+          .contentType("text/xml")
+          .extract().body().asString();
+    }
+    Assert.assertEquals(5, iter);
+    Assert.assertEquals(10, identifiers.size());
   }
 
   @Test
