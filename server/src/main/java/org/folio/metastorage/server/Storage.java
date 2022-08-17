@@ -578,6 +578,8 @@ public class Storage {
       String sqlWhere, String sqlOrderBy) {
     String from = clusterRecordTable + " LEFT JOIN " + clusterValueTable + " ON "
         + clusterValueTable + ".cluster_id = " + clusterRecordTable + ".cluster_id"
+        + " LEFT JOIN " + globalRecordTable + " ON "
+        + clusterRecordTable + ".record_id = " + globalRecordTable + ".id"
         + " WHERE " + clusterRecordTable + ".match_key_config_id = $1";
     if (sqlWhere != null) {
       from = from + " AND (" + sqlWhere + ")";
