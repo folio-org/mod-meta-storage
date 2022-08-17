@@ -49,12 +49,15 @@ import javax.xml.transform.stream.StreamSource;
 import javax.xml.validation.Schema;
 import javax.xml.validation.SchemaFactory;
 import javax.xml.validation.Validator;
+
+import io.vertx.sqlclient.Tuple;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.awaitility.Awaitility;
 import org.folio.metastorage.module.impl.ModuleScripts;
 import org.folio.metastorage.server.entity.CodeModuleEntity;
 import org.folio.okapi.common.XOkapiHeaders;
+import org.folio.tlib.postgres.TenantPgPool;
 import org.folio.tlib.postgres.testing.TenantPgPoolContainer;
 import org.hamcrest.Matchers;
 import org.junit.After;
@@ -654,6 +657,14 @@ public class MainVerticleTest {
         .then().statusCode(204);
 
 
+  }
+
+  static String verifyOaiResponseRuntime(String s, String verb, List<String> identifiers, int length, JsonArray expRecords) {
+    try {
+      return verifyOaiResponse(s, verb, identifiers, length, expRecords);
+    } catch (XMLStreamException|IOException|SAXException e) {
+      throw new RuntimeException(e);
+    }
   }
 
   static String verifyOaiResponse(String s, String verb, List<String> identifiers, int length, JsonArray expRecords)
@@ -2596,12 +2607,13 @@ public class MainVerticleTest {
         .contentType("text/xml")
         .extract().body().asString();
     int iter;
-    for (iter = 0; iter < 10; iter++) {
+    for (iter = 1; iter < 10; iter++) {
       String token = verifyOaiResponse(s, "ListRecords", identifiers, -1, null);
       if (token == null) {
         break;
       }
       ResumptionToken tokenClass = new ResumptionToken(token);
+      log.info("token {}", tokenClass.toString());
       Assert.assertEquals("isbn", tokenClass.getSet());
       s = RestAssured.given()
           .header(XOkapiHeaders.TENANT, TENANT_1)
@@ -2613,21 +2625,63 @@ public class MainVerticleTest {
           .contentType("text/xml")
           .extract().body().asString();
     }
-    Assert.assertEquals(4, iter);
+    Assert.assertEquals(5, iter);
     Assert.assertEquals(10, identifiers.size());
+  }
 
-    RestAssured.given()
-        .header(XOkapiHeaders.TENANT, TENANT_1)
-        .header("Content-Type", "application/json")
-        .param("query", "cql.allRecords=true")
-        .delete("/meta-storage/records")
-        .then().statusCode(204);
+  @Test
+  public void testOaiResumptionToken2(TestContext context) {
+    createIsbnMatchKey();
 
-    RestAssured.given()
-        .header(XOkapiHeaders.TENANT, TENANT_1)
-        .delete("/meta-storage/config/matchkeys/isbn")
-        .then().statusCode(204);
+    for (int i = 0; i < 10; i++) {
+      JsonArray records1 = new JsonArray()
+          .add(new JsonObject()
+              .put("localId", "S" + i)
+              .put("payload", new JsonObject()
+                  .put("marc", new JsonObject().put("leader", "00914naa  0101   450 "))
+                  .put("inventory", new JsonObject().put("isbn", new JsonArray().add(Integer.toString(i))))
+              )
+          );
+      ingestRecords(records1, SOURCE_ID_1);
+    }
+    List<String> identifiers = new LinkedList<>();
 
+    Storage storage = new Storage(vertx, TENANT_1);
+    storage.getPool().preparedQuery("UPDATE " + storage.getClusterMetaTable()
+            + " SET datestamp = $1")
+        .execute(Tuple.of(LocalDateTime.now(ZoneOffset.UTC)))
+        .onComplete(context.asyncAssertSuccess(h -> {
+
+          String s = RestAssured.given()
+              .header(XOkapiHeaders.TENANT, TENANT_1)
+              .param("verb", "ListRecords")
+              .param("limit", "2")
+              .get("/meta-storage/oai")
+              .then().statusCode(200)
+              .contentType("text/xml")
+              .extract().body().asString();
+          int iter;
+          for (iter = 1; iter < 10; iter++) {
+            String token = verifyOaiResponseRuntime(s, "ListRecords", identifiers, -1, null);
+            if (token == null) {
+              break;
+            }
+            ResumptionToken tokenClass = new ResumptionToken(token);
+            log.info("token {}", tokenClass.toString());
+            Assert.assertEquals("isbn", tokenClass.getSet());
+            s = RestAssured.given()
+                .header(XOkapiHeaders.TENANT, TENANT_1)
+                .param("verb", "ListRecords")
+                .param("limit", "2")
+                .param("resumptionToken", token)
+                .get("/meta-storage/oai")
+                .then().statusCode(200)
+                .contentType("text/xml")
+                .extract().body().asString();
+          }
+          Assert.assertEquals(5, iter);
+          Assert.assertEquals(10, identifiers.size());
+        }));
   }
 
   @Test
