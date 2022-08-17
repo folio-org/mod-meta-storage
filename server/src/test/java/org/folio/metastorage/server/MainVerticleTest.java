@@ -2667,14 +2667,18 @@ public class MainVerticleTest {
         .contentType("text/xml")
         .extract().body().asString();
     int iter;
+    ResumptionToken firstToken = null;
     for (iter = 1; iter < 10; iter++) {
       String token = verifyOaiResponseRuntime(s, "ListRecords", identifiers, -1, null);
       if (token == null) {
         break;
       }
-      ResumptionToken tokenClass = new ResumptionToken(token);
-      log.info("token {}", tokenClass.toString());
-      Assert.assertEquals("isbn", tokenClass.getSet());
+      ResumptionToken resumptionToken = new ResumptionToken(token);
+      if (iter == 1) {
+        firstToken = resumptionToken;
+      }
+      log.info("token {}", resumptionToken.toString());
+      Assert.assertEquals("isbn", resumptionToken.getSet());
       s = RestAssured.given()
           .header(XOkapiHeaders.TENANT, TENANT_1)
           .param("verb", "ListRecords")
@@ -2687,6 +2691,21 @@ public class MainVerticleTest {
     }
     Assert.assertEquals(5, iter);
     Assert.assertEquals(10, identifiers.size());
+
+    identifiers.clear();
+    firstToken.setId(null); // make it a legacy token without id
+    s = RestAssured.given()
+        .header(XOkapiHeaders.TENANT, TENANT_1)
+        .param("verb", "ListRecords")
+        .param("limit", "3")
+        .param("resumptionToken", firstToken.encode())
+        .get("/meta-storage/oai")
+        .then().statusCode(200)
+        .contentType("text/xml")
+        .extract().body().asString();
+
+    verifyOaiResponseRuntime(s, "ListRecords", identifiers, -1, null);
+    Assert.assertEquals(3, identifiers.size());
   }
 
   @Test

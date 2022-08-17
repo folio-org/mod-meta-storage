@@ -29,7 +29,7 @@ public class ResumptionTokenTest {
   @Test
   public void testNullUntil() {
     String until = null;
-    String set = "my set";
+    String set = "my / set";
     ResumptionToken token = new ResumptionToken(set, until);
     Assert.assertEquals("set=" + set + " from=null id=null until=" + until, token.toString());
 
@@ -55,18 +55,6 @@ public class ResumptionTokenTest {
     token.setId(id);
     String coded = token.encode();
     ResumptionToken token2 = new ResumptionToken(coded);
-    Assert.assertEquals(from, token2.getFrom());
-    Assert.assertEquals(until, token2.getUntil());
-    Assert.assertEquals(set, token2.getSet());
-    Assert.assertEquals(id, token2.getId());
-    Assert.assertEquals("set=" + set + " from=" + from + " id=" + id + " until=" + until, token2.toString());
-
-    set = "my / set";
-    token = new ResumptionToken(set, until);
-    token.setFrom(from);
-    token.setId(id);
-    coded = token.encode();
-    token2 = new ResumptionToken(coded);
     Assert.assertEquals(from, token2.getFrom());
     Assert.assertEquals(until, token2.getUntil());
     Assert.assertEquals(set, token2.getSet());
